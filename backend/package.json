@@ -1,0 +1,32 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "parallel --tag --halt now,done=1,fail=1 ::: \"tsc -w\" \"node --watch --env-file .env dist/index.js\" \"tsc -w --emitDeclarationOnly --outDir ../frontend/src/router-types\"",
+    
+    "db:push": "pnpm exec drizzle-kit push"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.9.0",
+  "dependencies": {
+    "@t3-oss/env-core": "^0.13.8",
+    "@trpc/server": "^11.5.1",
+    "drizzle-orm": "^0.44.5",
+    "express": "^5.1.0",
+    "pg": "^8.16.3",
+    "zod": "^4.1.8"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.3.3",
+    "@types/pg": "^8.15.5",
+    "drizzle-kit": "^0.31.4",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}

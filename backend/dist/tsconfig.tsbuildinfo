@@ -1,0 +1,1 @@
+{"root":["../src/env.ts","../src/index.ts","../src/db/db.ts","../src/db/schema.ts","../src/trpc/index.ts","../src/trpc/router/index.ts","../src/trpc/router/menuitem.ts","../src/trpc/router/modifiergroup.ts"],"version":"5.8.3"}
