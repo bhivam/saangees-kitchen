@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "parallel --tag --halt now,done=1,fail=1 ::: \"tsc -w\" \"node --watch --env-file .env dist/index.js\" \"tsc -w --emitDeclarationOnly --outDir ../frontend/src/router-types\"",
-    
+    "build": "tsc -b",
+    "dev": "concurrently --kill-others-on-fail --prefix-colors auto \"tsc -w\" \"node --watch --env-file .env dist/index.js\" \"tsc -w --emitDeclarationOnly --outDir ../frontend/src/router-types\"",
     "db:push": "pnpm exec drizzle-kit push"
   },
   "keywords": [],
@@ -16,15 +16,20 @@
   "dependencies": {
     "@t3-oss/env-core": "^0.13.8",
     "@trpc/server": "^11.5.1",
+    "better-auth": "^1.3.34",
+    "cors": "^2.8.5",
     "drizzle-orm": "^0.44.5",
     "express": "^5.1.0",
     "pg": "^8.16.3",
     "zod": "^4.1.8"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
+    "@types/express-serve-static-core": "^5.1.0",
     "@types/node": "^24.3.3",
     "@types/pg": "^8.15.5",
+    "@types/qs": "^6.14.0",
     "drizzle-kit": "^0.31.4",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2"

@@ -11,7 +11,7 @@ const schema_1 = require("../../db/schema");
 const server_1 = require("@trpc/server");
 const drizzle_orm_1 = require("drizzle-orm");
 exports.menuItemsRouter = (0, __1.createTRPCRouter)({
-    createMenuItem: __1.publicProcedure
+    createMenuItem: __1.adminProcedure
         .input(zod_1.default.object({
         name: zod_1.default.string().min(1),
         description: zod_1.default.string().min(1),

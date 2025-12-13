@@ -1,18 +1,19 @@
-import { Home, Menu, Sheet, SlidersHorizontal } from "lucide-react";
+import { Home, Menu, Sheet, SlidersHorizontal, Clipboard } from "lucide-react";
 import { useState } from "react";
 
-export const merchantHomeNavData = [
+export const merchantDashboardNavData = [
   { name: "Home", icon: Home },
-  { name: "Item Manager", icon: Menu },
+  { name: "Item Manager", icon: Clipboard },
   { name: "Modifier Manager", icon: SlidersHorizontal },
+  { name: "Menu Editor", icon: Menu },
   { name: "Orders", icon: Sheet },
 ] as const;
 
-export type MerchantHomeNavData = typeof merchantHomeNavData;
+export type MerchantDashboardNavData = typeof merchantDashboardNavData;
 
 export function useMerchantNavigation() {
   const [location, setLocation] =
-    useState<MerchantHomeNavData[number]["name"]>("Home");
+    useState<MerchantDashboardNavData[number]["name"]>("Home");
 
   return {
     location,

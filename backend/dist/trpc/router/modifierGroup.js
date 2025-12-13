@@ -10,7 +10,7 @@ const db_1 = require("../../db/db");
 const schema_1 = require("../../db/schema");
 const server_1 = require("@trpc/server");
 exports.modifierGroupsRouter = (0, __1.createTRPCRouter)({
-    createModifierGroup: __1.publicProcedure
+    createModifierGroup: __1.adminProcedure
         .input(zod_1.default
         .object({
         name: zod_1.default.string().min(1),

@@ -8,8 +8,12 @@ export const env = createEnv({
       .string()
       .transform((x) => parseInt(x))
       .pipe(z.number().positive()),
+    SERVER_URL: z.string().url().default("http://localhost:3000"),
+    FRONTEND_URL: z.string().url().default("http://localhost:5173"),
   },
 
   runtimeEnv: process.env,
 });
+
+export const origins = [env.FRONTEND_URL];
 

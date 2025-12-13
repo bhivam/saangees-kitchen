@@ -1,12 +1,12 @@
 import z from "zod";
-import { createTRPCRouter, publicProcedure } from "..";
+import { createTRPCRouter, publicProcedure, adminProcedure } from "..";
 import { db } from "../../db/db";
 import { menuItems } from "../../db/schema";
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 
 export const menuItemsRouter = createTRPCRouter({
-  createMenuItem: publicProcedure
+  createMenuItem: adminProcedure
     .input(
       z.object({
         name: z.string().min(1),

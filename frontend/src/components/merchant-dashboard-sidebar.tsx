@@ -7,11 +7,11 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import {
-  merchantHomeNavData,
+  merchantDashboardNavData,
   type useMerchantNavigation,
 } from "@/hooks/use-merchant-navigation";
 
-export function MerchantHomeSidebar({
+export function MerchantDashboardSidebar({
   className,
   location,
   setLocation,
@@ -23,7 +23,7 @@ export function MerchantHomeSidebar({
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
-          {merchantHomeNavData.map(({ name, icon: Icon }) => (
+          {merchantDashboardNavData.map(({ name, icon: Icon }) => (
             <SidebarMenuItem>
               <SidebarMenuButton
                 className={location === name ? "bg-sidebar-accent" : ""}
