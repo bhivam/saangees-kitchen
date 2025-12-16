@@ -9,7 +9,6 @@ export const Route = createFileRoute("/login")({
 function Login() {
   const { isAuthenticated, isAdmin, isLoading } = useAuth();
 
-  // If already logged in, redirect based on role
   if (!isLoading && isAuthenticated) {
     if (isAdmin) {
       return <Navigate to="/dashboard" />;
@@ -19,3 +18,4 @@ function Login() {
 
   return <LoginForm />;
 }
+

@@ -24,6 +24,7 @@ export declare const modifierGroupsRouter: import("@trpc/server").TRPCBuiltRoute
             image?: string | null | undefined | undefined;
             phoneNumber?: string | null | undefined;
             phoneNumberVerified?: boolean | null | undefined;
+            isAdmin: boolean;
         };
         isAdmin: boolean;
     };

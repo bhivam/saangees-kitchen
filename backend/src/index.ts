@@ -1,5 +1,5 @@
 import express from "express";
-import { env, origins } from "./env";
+import { env } from "./env";
 import * as trpcExpress from "@trpc/server/adapters/express";
 import { appRouter } from "./trpc/router";
 import { createContext } from "./trpc";
@@ -21,7 +21,7 @@ app.use(
     ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    origin: origins,
+    origin: env.FRONTEND_URLS,
   }),
 );
 

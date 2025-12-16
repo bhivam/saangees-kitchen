@@ -24,7 +24,9 @@ export function PhoneInput({ onOTPSent }: PhoneInputProps) {
     // Basic validation - starts with +, followed by digits
     const phoneRegex = /^\+[1-9]\d{1,14}$/;
     if (!phoneRegex.test(phoneNumber)) {
-      toast.error("Please enter a valid phone number with country code (e.g., +1234567890)");
+      toast.error(
+        "Please enter a valid phone number with country code (e.g., +1234567890)",
+      );
       return;
     }
 
@@ -36,11 +38,9 @@ export function PhoneInput({ onOTPSent }: PhoneInputProps) {
       });
 
       toast.success("OTP sent! Check backend console for code");
-      console.log("📱 Check backend console for OTP code");
       onOTPSent(phoneNumber);
     } catch (error: any) {
       toast.error(error.message || "Failed to send OTP");
-      console.error("OTP send error:", error);
     } finally {
       setIsLoading(false);
     }
@@ -73,3 +73,4 @@ export function PhoneInput({ onOTPSent }: PhoneInputProps) {
     </form>
   );
 }
+

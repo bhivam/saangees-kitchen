@@ -136,6 +136,7 @@ exports.user = (0, pg_core_1.pgTable)("user", {
         .notNull(),
     phoneNumber: (0, pg_core_1.text)("phone_number").unique(),
     phoneNumberVerified: (0, pg_core_1.boolean)("phone_number_verified"),
+    isAdmin: (0, pg_core_1.boolean)("is_admin").default(false).notNull(),
 });
 exports.session = (0, pg_core_1.pgTable)("session", {
     id: (0, pg_core_1.text)("id").primaryKey(),

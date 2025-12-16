@@ -532,6 +532,15 @@ export declare const auth: import("better-auth").Auth<{
             readonly PHONE_NUMBER_NOT_VERIFIED: "Phone number not verified";
         };
     }];
+    user: {
+        additionalFields: {
+            isAdmin: {
+                type: "boolean";
+                required: true;
+                defaultValue: false;
+            };
+        };
+    };
     database: (options: import("better-auth").BetterAuthOptions) => import("better-auth/adapters/drizzle").DBAdapter<import("better-auth").BetterAuthOptions>;
 }>;
 export type Session = typeof auth.$Infer.Session.session;

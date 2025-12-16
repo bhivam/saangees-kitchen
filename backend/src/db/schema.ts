@@ -182,6 +182,7 @@ export const user = pgTable("user", {
     .notNull(),
   phoneNumber: text("phone_number").unique(),
   phoneNumberVerified: boolean("phone_number_verified"),
+  isAdmin: boolean("is_admin").default(false).notNull(),
 });
 
 export const session = pgTable(

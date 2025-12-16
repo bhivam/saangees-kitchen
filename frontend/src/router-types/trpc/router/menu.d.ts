@@ -24,6 +24,7 @@ export declare const menuRouter: import("@trpc/server").TRPCBuiltRouter<{
             image?: string | null | undefined | undefined;
             phoneNumber?: string | null | undefined;
             phoneNumberVerified?: boolean | null | undefined;
+            isAdmin: boolean;
         };
         isAdmin: boolean;
     };

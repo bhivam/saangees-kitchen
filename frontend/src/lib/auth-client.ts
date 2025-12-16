@@ -1,9 +1,13 @@
 import { env } from "@/env";
 import { createAuthClient } from "better-auth/react";
-import { phoneNumberClient } from "better-auth/client/plugins";
+import {
+  inferAdditionalFields,
+  phoneNumberClient,
+} from "better-auth/client/plugins";
+import { auth } from "@/router-types/lib/auth";
 
 export const authClient = createAuthClient({
-  plugins: [phoneNumberClient()],
+  plugins: [phoneNumberClient(), inferAdditionalFields<typeof auth>()],
   baseURL: env.VITE_SERVER_URL,
 });
 

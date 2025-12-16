@@ -56,7 +56,7 @@ app.use((0, cors_1.default)({
     ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    origin: env_1.origins,
+    origin: env_1.env.FRONTEND_URLS,
 }));
 app.use((req, res, next) => {
     const startTimestamp = new Date().toISOString();

@@ -2,11 +2,13 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "../db/db";
 import { phoneNumber } from "better-auth/plugins";
-import { env, origins } from "../env";
+import { env } from "../env";
+import { user } from "../db/schema";
+import { isAdminPhoneNumber } from "./admin-phones";
 
 export const auth = betterAuth({
   baseURL: env.SERVER_URL,
-  trustedOrigins: origins,
+  trustedOrigins: env.FRONTEND_URLS,
   logger: {
     disabled: false,
     level: "debug",
@@ -19,6 +21,11 @@ export const auth = betterAuth({
       sendOTP: ({ phoneNumber, code }) => {
         console.log(`\nOTP for ${phoneNumber}: ${code}`);
       },
+      async callbackOnVerification(data) {
+        await db
+          .update(user)
+          .set({ isAdmin: isAdminPhoneNumber(data.phoneNumber) });
+      },
       signUpOnVerification: {
         getTempEmail: (phoneNumber) => {
           return `${phoneNumber}@saangees-kitchen.com`;
@@ -29,6 +36,15 @@ export const auth = betterAuth({
       },
     }),
   ],
+  user: {
+    additionalFields: {
+      isAdmin: {
+        type: "boolean",
+        required: true,
+        defaultValue: false,
+      },
+    },
+  },
   database: drizzleAdapter(db, { provider: "pg" }),
 });
 

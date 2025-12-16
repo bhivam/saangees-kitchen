@@ -24,6 +24,7 @@ export declare function createContext({ req }: CreateExpressContextOptions): Pro
         image?: string | null | undefined | undefined;
         phoneNumber?: string | null | undefined;
         phoneNumberVerified?: boolean | null | undefined;
+        isAdmin: boolean;
     };
     isAdmin: boolean;
 }>;
@@ -54,6 +55,7 @@ export declare const createTRPCRouter: import("@trpc/server").TRPCRouterBuilder<
             image?: string | null | undefined | undefined;
             phoneNumber?: string | null | undefined;
             phoneNumberVerified?: boolean | null | undefined;
+            isAdmin: boolean;
         };
         isAdmin: boolean;
     };
@@ -86,6 +88,7 @@ export declare const publicProcedure: import("@trpc/server").TRPCProcedureBuilde
         image?: string | null | undefined | undefined;
         phoneNumber?: string | null | undefined;
         phoneNumberVerified?: boolean | null | undefined;
+        isAdmin: boolean;
     };
     isAdmin: boolean;
 }, object, {}, import("@trpc/server").TRPCUnsetMarker, import("@trpc/server").TRPCUnsetMarker, import("@trpc/server").TRPCUnsetMarker, import("@trpc/server").TRPCUnsetMarker, false>;
@@ -114,6 +117,7 @@ export declare const protectedProcedure: import("@trpc/server").TRPCProcedureBui
         image?: string | null | undefined | undefined;
         phoneNumber?: string | null | undefined;
         phoneNumberVerified?: boolean | null | undefined;
+        isAdmin: boolean;
     };
     isAdmin: boolean;
 }, object, {
@@ -127,7 +131,9 @@ export declare const protectedProcedure: import("@trpc/server").TRPCProcedureBui
         image?: string | null | undefined | undefined;
         phoneNumber?: string | null | undefined;
         phoneNumberVerified?: boolean | null | undefined;
+        isAdmin: boolean;
     };
+    isAdmin: boolean;
     session: {
         id: string;
         createdAt: Date;
@@ -138,7 +144,6 @@ export declare const protectedProcedure: import("@trpc/server").TRPCProcedureBui
         ipAddress?: string | null | undefined | undefined;
         userAgent?: string | null | undefined | undefined;
     };
-    isAdmin: boolean;
 }, import("@trpc/server").TRPCUnsetMarker, import("@trpc/server").TRPCUnsetMarker, import("@trpc/server").TRPCUnsetMarker, import("@trpc/server").TRPCUnsetMarker, false>;
 export declare const adminProcedure: import("@trpc/server").TRPCProcedureBuilder<{
     isAdmin: boolean;
@@ -165,6 +170,7 @@ export declare const adminProcedure: import("@trpc/server").TRPCProcedureBuilder
         image?: string | null | undefined | undefined;
         phoneNumber?: string | null | undefined;
         phoneNumberVerified?: boolean | null | undefined;
+        isAdmin: boolean;
     };
     isAdmin: boolean;
 }, object, {
@@ -178,7 +184,9 @@ export declare const adminProcedure: import("@trpc/server").TRPCProcedureBuilder
         image?: string | null | undefined | undefined;
         phoneNumber?: string | null | undefined;
         phoneNumberVerified?: boolean | null | undefined;
+        isAdmin: boolean;
     };
+    isAdmin: boolean;
     session: {
         id: string;
         createdAt: Date;
@@ -189,7 +197,6 @@ export declare const adminProcedure: import("@trpc/server").TRPCProcedureBuilder
         ipAddress?: string | null | undefined | undefined;
         userAgent?: string | null | undefined | undefined;
     };
-    isAdmin: boolean;
 } | {
     user: {
         id: string;
@@ -201,7 +208,9 @@ export declare const adminProcedure: import("@trpc/server").TRPCProcedureBuilder
         image?: string | null | undefined | undefined;
         phoneNumber?: string | null | undefined;
         phoneNumberVerified?: boolean | null | undefined;
+        isAdmin: boolean;
     };
+    isAdmin: boolean;
     session: {
         id: string;
         createdAt: Date;
@@ -212,6 +221,5 @@ export declare const adminProcedure: import("@trpc/server").TRPCProcedureBuilder
         ipAddress?: string | null | undefined | undefined;
         userAgent?: string | null | undefined | undefined;
     };
-    isAdmin: boolean;
 }, import("@trpc/server").TRPCUnsetMarker, import("@trpc/server").TRPCUnsetMarker, import("@trpc/server").TRPCUnsetMarker, import("@trpc/server").TRPCUnsetMarker, false>;
 //# sourceMappingURL=index.d.ts.map

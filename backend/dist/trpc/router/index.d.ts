@@ -24,6 +24,7 @@ export declare const appRouter: import("@trpc/server").TRPCBuiltRouter<{
             image?: string | null | undefined | undefined;
             phoneNumber?: string | null | undefined;
             phoneNumberVerified?: boolean | null | undefined;
+            isAdmin: boolean;
         };
         isAdmin: boolean;
     };
@@ -62,6 +63,7 @@ export declare const appRouter: import("@trpc/server").TRPCBuiltRouter<{
                 image?: string | null | undefined | undefined;
                 phoneNumber?: string | null | undefined;
                 phoneNumberVerified?: boolean | null | undefined;
+                isAdmin: boolean;
             };
             isAdmin: boolean;
         };
@@ -154,6 +156,7 @@ export declare const appRouter: import("@trpc/server").TRPCBuiltRouter<{
                 image?: string | null | undefined | undefined;
                 phoneNumber?: string | null | undefined;
                 phoneNumberVerified?: boolean | null | undefined;
+                isAdmin: boolean;
             };
             isAdmin: boolean;
         };
@@ -244,6 +247,7 @@ export declare const appRouter: import("@trpc/server").TRPCBuiltRouter<{
                 image?: string | null | undefined | undefined;
                 phoneNumber?: string | null | undefined;
                 phoneNumberVerified?: boolean | null | undefined;
+                isAdmin: boolean;
             };
             isAdmin: boolean;
         };

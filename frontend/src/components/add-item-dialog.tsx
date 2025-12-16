@@ -82,12 +82,8 @@ function AddItemDialogContent({
 
                     if (Number.isNaN(parsedValue)) return;
 
-                    console.log(parsedValue);
-
                     handleChange((value) => {
                       const newValue = value * 10 + parsedValue;
-
-                      console.log(value, newValue);
 
                       return newValue;
                     });
