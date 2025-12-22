@@ -1,3 +1,7 @@
+.env
+
+src/router-types
+
 # Logs
 logs
 *.log
