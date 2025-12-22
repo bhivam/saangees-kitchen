@@ -22,9 +22,10 @@ export declare function createContext({ req }: CreateExpressContextOptions): Pro
         emailVerified: boolean;
         name: string;
         image?: string | null | undefined | undefined;
+        isAnonymous?: boolean | null | undefined;
+        isAdmin: boolean;
         phoneNumber?: string | null | undefined;
         phoneNumberVerified?: boolean | null | undefined;
-        isAdmin: boolean;
     };
     isAdmin: boolean;
 }>;
@@ -53,9 +54,10 @@ export declare const createTRPCRouter: import("@trpc/server").TRPCRouterBuilder<
             emailVerified: boolean;
             name: string;
             image?: string | null | undefined | undefined;
+            isAnonymous?: boolean | null | undefined;
+            isAdmin: boolean;
             phoneNumber?: string | null | undefined;
             phoneNumberVerified?: boolean | null | undefined;
-            isAdmin: boolean;
         };
         isAdmin: boolean;
     };
@@ -86,9 +88,10 @@ export declare const publicProcedure: import("@trpc/server").TRPCProcedureBuilde
         emailVerified: boolean;
         name: string;
         image?: string | null | undefined | undefined;
+        isAnonymous?: boolean | null | undefined;
+        isAdmin: boolean;
         phoneNumber?: string | null | undefined;
         phoneNumberVerified?: boolean | null | undefined;
-        isAdmin: boolean;
     };
     isAdmin: boolean;
 }, object, {}, import("@trpc/server").TRPCUnsetMarker, import("@trpc/server").TRPCUnsetMarker, import("@trpc/server").TRPCUnsetMarker, import("@trpc/server").TRPCUnsetMarker, false>;
@@ -115,12 +118,14 @@ export declare const protectedProcedure: import("@trpc/server").TRPCProcedureBui
         emailVerified: boolean;
         name: string;
         image?: string | null | undefined | undefined;
+        isAnonymous?: boolean | null | undefined;
+        isAdmin: boolean;
         phoneNumber?: string | null | undefined;
         phoneNumberVerified?: boolean | null | undefined;
-        isAdmin: boolean;
     };
     isAdmin: boolean;
 }, object, {
+    isAdmin: boolean;
     user: {
         id: string;
         createdAt: Date;
@@ -129,11 +134,11 @@ export declare const protectedProcedure: import("@trpc/server").TRPCProcedureBui
         emailVerified: boolean;
         name: string;
         image?: string | null | undefined | undefined;
+        isAnonymous?: boolean | null | undefined;
+        isAdmin: boolean;
         phoneNumber?: string | null | undefined;
         phoneNumberVerified?: boolean | null | undefined;
-        isAdmin: boolean;
     };
-    isAdmin: boolean;
     session: {
         id: string;
         createdAt: Date;
@@ -168,12 +173,14 @@ export declare const adminProcedure: import("@trpc/server").TRPCProcedureBuilder
         emailVerified: boolean;
         name: string;
         image?: string | null | undefined | undefined;
+        isAnonymous?: boolean | null | undefined;
+        isAdmin: boolean;
         phoneNumber?: string | null | undefined;
         phoneNumberVerified?: boolean | null | undefined;
-        isAdmin: boolean;
     };
     isAdmin: boolean;
 }, object, {
+    isAdmin: boolean;
     user: {
         id: string;
         createdAt: Date;
@@ -182,11 +189,11 @@ export declare const adminProcedure: import("@trpc/server").TRPCProcedureBuilder
         emailVerified: boolean;
         name: string;
         image?: string | null | undefined | undefined;
+        isAnonymous?: boolean | null | undefined;
+        isAdmin: boolean;
         phoneNumber?: string | null | undefined;
         phoneNumberVerified?: boolean | null | undefined;
-        isAdmin: boolean;
     };
-    isAdmin: boolean;
     session: {
         id: string;
         createdAt: Date;
@@ -198,6 +205,7 @@ export declare const adminProcedure: import("@trpc/server").TRPCProcedureBuilder
         userAgent?: string | null | undefined | undefined;
     };
 } | {
+    isAdmin: boolean;
     user: {
         id: string;
         createdAt: Date;
@@ -206,11 +214,11 @@ export declare const adminProcedure: import("@trpc/server").TRPCProcedureBuilder
         emailVerified: boolean;
         name: string;
         image?: string | null | undefined | undefined;
+        isAnonymous?: boolean | null | undefined;
+        isAdmin: boolean;
         phoneNumber?: string | null | undefined;
         phoneNumberVerified?: boolean | null | undefined;
-        isAdmin: boolean;
     };
-    isAdmin: boolean;
     session: {
         id: string;
         createdAt: Date;

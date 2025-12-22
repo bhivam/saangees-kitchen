@@ -22,9 +22,10 @@ export declare const menuRouter: import("@trpc/server").TRPCBuiltRouter<{
             emailVerified: boolean;
             name: string;
             image?: string | null | undefined | undefined;
+            isAnonymous?: boolean | null | undefined;
+            isAdmin: boolean;
             phoneNumber?: string | null | undefined;
             phoneNumberVerified?: boolean | null | undefined;
-            isAdmin: boolean;
         };
         isAdmin: boolean;
     };
@@ -54,14 +55,32 @@ export declare const menuRouter: import("@trpc/server").TRPCBuiltRouter<{
             dates: string[];
         };
         output: {
-            id: string;
             date: string | null;
+            id: string;
+            menuItemId: string;
             sortOrder: number | null;
             menuItem: {
                 id: string;
                 name: string;
                 description: string;
                 basePrice: number;
+                modifierGroups: {
+                    menuItemId: string;
+                    groupId: string;
+                    sortOrder: number | null;
+                    modifierGroup: {
+                        id: string;
+                        name: string;
+                        minSelect: number;
+                        maxSelect: number | null;
+                        options: {
+                            id: string;
+                            name: string;
+                            groupId: string;
+                            priceDelta: number;
+                        }[];
+                    };
+                }[];
             };
         }[];
         meta: object;

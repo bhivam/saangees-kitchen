@@ -768,6 +768,23 @@ export declare const user: import("drizzle-orm/pg-core").PgTableWithColumns<{
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
+        isAnonymous: import("drizzle-orm/pg-core").PgColumn<{
+            name: "is_anonymous";
+            tableName: "user";
+            dataType: "boolean";
+            columnType: "PgBoolean";
+            data: boolean;
+            driverParam: boolean;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
         phoneNumber: import("drizzle-orm/pg-core").PgColumn<{
             name: "phone_number";
             tableName: "user";

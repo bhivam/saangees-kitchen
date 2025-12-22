@@ -1,21 +1,27 @@
-import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { LoginForm } from "@/components/auth/login-form";
-import { useAuth } from "@/hooks/use-auth";
+import { authClient } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/login")({
   component: Login,
+  async beforeLoad() {
+    const { data, error } = await authClient.getSession();
+    if (error)
+      throw new Error(`Failed to get user session data: ${error.message}`);
+
+    if (!data) return;
+
+    const {
+      user: { isAnonymous, isAdmin },
+    } = data;
+
+    if (isAnonymous) return;
+
+    throw redirect({ to: isAdmin ? "/dashboard" : "/" });
+  },
 });
 
 function Login() {
-  const { isAuthenticated, isAdmin, isLoading } = useAuth();
-
-  if (!isLoading && isAuthenticated) {
-    if (isAdmin) {
-      return <Navigate to="/dashboard" />;
-    }
-    return <Navigate to="/" />;
-  }
-
   return <LoginForm />;
 }
 

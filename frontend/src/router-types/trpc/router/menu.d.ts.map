@@ -1,1 +1,1 @@
-{"version":3,"file":"menu.d.ts","sourceRoot":"","sources":["../../../../../backend/src/trpc/router/menu.ts"],"names":[],"mappings":"AAMA,eAAO,MAAM,UAAU;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;GA4FrB,CAAC"}
+{"version":3,"file":"menu.d.ts","sourceRoot":"","sources":["../../../../../backend/src/trpc/router/menu.ts"],"names":[],"mappings":"AAOA,eAAO,MAAM,UAAU;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;GAqGrB,CAAC"}

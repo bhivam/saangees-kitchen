@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useTRPC } from "@/trpc";
+import { useTRPC, type RouterOutputs } from "@/trpc";
 import { Link } from "@tanstack/react-router";
 import { Card, CardContent, CardHeader } from "./ui/card";
 import { Skeleton } from "./ui/skeleton";
@@ -7,21 +7,12 @@ import { Button } from "./ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
+import { Apple, ShoppingCart } from "lucide-react";
+import { AddItemCartDialogTrigger } from "./add-item-cart-dialog-trigger";
 
-type MenuItem = {
-  id: string;
-  name: string;
-  description: string;
-  basePrice: number;
-};
+type MenuEntry = RouterOutputs["menu"]["getByDateRange"][number];
 
-type MenuEntry = {
-  id: string;
-  date: string | null;
-  sortOrder: number | null;
-  menuItem: MenuItem;
-};
+export type MenuItem = MenuEntry["menuItem"];
 
 function getWeekDates(startDate: Date, days: number = 7): string[] {
   const dates: string[] = [];
@@ -56,22 +47,20 @@ function groupMenusByDate(menuEntries: MenuEntry[]): Map<string, MenuItem[]> {
   return grouped;
 }
 
-function MenuItemCard({ item }: { item: MenuItem }) {
+function MenuItemCard({ item: menuItem }: { item: MenuItem }) {
   return (
     <div
-      key={item.id}
+      key={menuItem.id}
       className="border-b pb-4 last:border-b-0 last:pb-0 mb-0 flex items-center justify-between"
     >
       <div className="flex flex-col justify-between items-start">
-        <h3 className="text-xl font-bold text-primary">{item.name}</h3>
-        <p className="text-md text-muted-foreground">{item.description}</p>
+        <h3 className="text-xl font-bold text-primary">{menuItem.name}</h3>
+        <p className="text-md text-muted-foreground">{menuItem.description}</p>
         <span className="font-bold text-muted-foreground text-md">
-          ${(item.basePrice / 100).toFixed(2)}
+          ${(menuItem.basePrice / 100).toFixed(2)}
         </span>
       </div>
-      <Button variant="outline">
-        <Plus />
-      </Button>
+      <AddItemCartDialogTrigger menuItem={menuItem} />
     </div>
   );
 }
@@ -136,7 +125,7 @@ export function CustomerMenuView() {
     }),
   );
 
-  const { session } = useAuth();
+  const { user } = useAuth();
 
   const handleLogout = async () => {
     try {
@@ -171,16 +160,21 @@ export function CustomerMenuView() {
     : new Map<string, MenuItem[]>();
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <div className="mb-4 flex items-start justify-between">
-        <h1 className="text-4xl font-bold">Weekly Menu</h1>
-        {session ? (
-          <Button onClick={handleLogout}>Logout</Button>
-        ) : (
-          <Link to="/login">
-            <Button>Login</Button>
-          </Link>
-        )}
+    <div className="container mx-auto px-2 py-4 max-w-4xl">
+      <div className="mb-4 flex justify-between items-center">
+        <Apple />
+        <div className="flex gap-1">
+          {user?.isAnonymous ? (
+            <Link to="/login">
+              <Button>Login</Button>
+            </Link>
+          ) : (
+            <Button onClick={handleLogout}>Logout</Button>
+          )}
+          <Button>
+            <ShoppingCart />0
+          </Button>
+        </div>
       </div>
 
       <div className="space-y-3">

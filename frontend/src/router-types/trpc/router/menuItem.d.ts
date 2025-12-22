@@ -22,9 +22,10 @@ export declare const menuItemsRouter: import("@trpc/server").TRPCBuiltRouter<{
             emailVerified: boolean;
             name: string;
             image?: string | null | undefined | undefined;
+            isAnonymous?: boolean | null | undefined;
+            isAdmin: boolean;
             phoneNumber?: string | null | undefined;
             phoneNumberVerified?: boolean | null | undefined;
-            isAdmin: boolean;
         };
         isAdmin: boolean;
     };
