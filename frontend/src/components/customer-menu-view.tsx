@@ -78,7 +78,7 @@ function MenuDayCard({
       {items && items.length > 0 ? (
         <div className="space-y-4">
           {items.map((item) => (
-            <MenuItemCard item={item} />
+            <MenuItemCard key={item.id} item={item} />
           ))}
         </div>
       ) : (

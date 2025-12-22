@@ -9,6 +9,8 @@ export async function createContext({ req }: CreateExpressContextOptions) {
     headers: fromNodeHeaders(req.headers),
   });
 
+
+
   if (!sessionData) {
     return { isAdmin: false };
   }
@@ -50,8 +52,8 @@ const timingMiddleware = t.middleware(async ({ next, path }) => {
   return result;
 });
 
-// Auth middleware - requires authenticated user
 const authMiddleware = t.middleware(async ({ ctx, next }) => {
+  console.log(ctx);
   if (!ctx.session || !ctx.user) {
     throw new TRPCError({
       code: "UNAUTHORIZED",
@@ -68,7 +70,6 @@ const authMiddleware = t.middleware(async ({ ctx, next }) => {
   });
 });
 
-// Admin middleware - requires admin role (checks phone number)
 const adminMiddleware = authMiddleware.unstable_pipe(async ({ ctx, next }) => {
   if (!ctx.isAdmin) {
     throw new TRPCError({

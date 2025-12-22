@@ -1,1 +1,0 @@
-{"version":3,"file":"index.js","sourceRoot":"","sources":["../../../src/trpc/router/index.ts"],"names":[],"mappings":";;;AAAA,0BAAuD;AACvD,iCAAqC;AAExB,QAAA,SAAS,GAAG,IAAA,oBAAgB,EAAC;IACxC,KAAK,EAAE,mBAAe,CAAC,KAAK,CAAC,GAAG,EAAE,CAAC,YAAY,CAAC;IAChD,KAAK,EAAE,kBAAW;CACnB,CAAC,CAAC"}

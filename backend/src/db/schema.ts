@@ -71,7 +71,7 @@ export const menuItemModifierGroups = pgTable(
     groupId: uuid("modifier_group_id")
       .notNull()
       .references(() => modifierGroups.id),
-    sortOrder: integer("sort_order").default(0),
+    sortOrder: integer("sort_order").notNull(),
   },
   (t) => [primaryKey({ columns: [t.menuItemId, t.groupId], name: "pk" })],
 );
@@ -95,6 +95,7 @@ export const orders = pgTable("orders", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   status: text("status").notNull(),
+  specialInstructions: text("special_instructions"),
   total: integer("total_amount"),
 });
 
@@ -107,10 +108,11 @@ export const orderItems = pgTable("order_items", {
   orderId: uuid("order_id")
     .notNull()
     .references(() => orders.id),
-  menuItemId: uuid("menu_item_id")
+  menuEntryId: uuid("menu_entry_id")
     .notNull()
     .references(() => menuItems.id),
   quantity: integer("quantity").notNull().default(1),
+  specialInstructions: text("special_instructions"),
   itemPrice: integer("item_price").notNull(),
 });
 
@@ -119,9 +121,9 @@ export const orderItemsRelations = relations(orderItems, ({ one, many }) => ({
     fields: [orderItems.orderId],
     references: [orders.id],
   }),
-  menuItem: one(menuItems, {
-    fields: [orderItems.menuItemId],
-    references: [menuItems.id],
+  menuEntry: one(menuEntries, {
+    fields: [orderItems.menuEntryId],
+    references: [menuEntries.id],
   }),
   modifiers: many(orderItemModifiers),
 }));
@@ -151,7 +153,7 @@ export const orderItemModifiersRelations = relations(
   }),
 );
 
-export const menus = pgTable("menus", {
+export const menuEntries = pgTable("menus_entries", {
   id: uuid("id").defaultRandom().primaryKey(),
   date: date("date"),
   menuItemId: uuid("menu_item_id")
@@ -160,9 +162,9 @@ export const menus = pgTable("menus", {
   sortOrder: integer("sort_order"),
 });
 
-export const menusRelations = relations(menus, ({ one }) => ({
+export const menusRelations = relations(menuEntries, ({ one }) => ({
   menuItem: one(menuItems, {
-    fields: [menus.menuItemId],
+    fields: [menuEntries.menuItemId],
     references: [menuItems.id],
   }),
 }));
@@ -180,6 +182,7 @@ export const user = pgTable("user", {
     .defaultNow()
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
+  isAnonymous: boolean("is_anonymous"),
   phoneNumber: text("phone_number").unique(),
   phoneNumberVerified: boolean("phone_number_verified"),
   isAdmin: boolean("is_admin").default(false).notNull(),

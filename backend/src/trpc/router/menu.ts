@@ -2,7 +2,8 @@ import { createTRPCRouter, publicProcedure, adminProcedure } from "..";
 import { z } from "zod";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "../../db/db";
-import { menuItems, menus } from "../../db/schema";
+import { menuItems, menuEntries, menuEntries } from "../../db/schema";
+import { TRPCError } from "@trpc/server";
 
 export const menuRouter = createTRPCRouter({
   getByDate: publicProcedure
@@ -14,15 +15,15 @@ export const menuRouter = createTRPCRouter({
     .query(async ({ input }) => {
       const menuEntries = await db
         .select({
-          id: menus.id,
-          date: menus.date,
-          sortOrder: menus.sortOrder,
+          id: menuEntries.id,
+          date: menuEntries.date,
+          sortOrder: menuEntries.sortOrder,
           menuItem: menuItems,
         })
-        .from(menus)
-        .innerJoin(menuItems, eq(menus.menuItemId, menuItems.id))
-        .where(eq(menus.date, input.date))
-        .orderBy(menus.sortOrder);
+        .from(menuEntries)
+        .innerJoin(menuItems, eq(menuEntries.menuItemId, menuItems.id))
+        .where(eq(menuEntries.date, input.date))
+        .orderBy(menuEntries.sortOrder);
 
       return menuEntries;
     }),
@@ -38,19 +39,29 @@ export const menuRouter = createTRPCRouter({
         return [];
       }
 
-      const menuEntries = await db
-        .select({
-          id: menus.id,
-          date: menus.date,
-          sortOrder: menus.sortOrder,
-          menuItem: menuItems,
-        })
-        .from(menus)
-        .innerJoin(menuItems, eq(menus.menuItemId, menuItems.id))
-        .where(inArray(menus.date, input.dates))
-        .orderBy(menus.date, menus.sortOrder);
+      const menuEntriesResult = await db.query.menuEntries.findMany({
+        where: inArray(menuEntries.date, input.dates),
+        with: {
+          menuItem: {
+            with: {
+              modifierGroups: {
+                with: {
+                  modifierGroup: {
+                    with: {
+                      options: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
 
-      return menuEntries;
+      if (!menuEntriesResult)
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      return menuEntriesResult;
     }),
 
   create: adminProcedure
@@ -67,7 +78,7 @@ export const menuRouter = createTRPCRouter({
         sortOrder: index,
       }));
 
-      await db.insert(menus).values(entries);
+      await db.insert(menuEntries).values(entries);
 
       return { success: true, date: input.date };
     }),
@@ -81,7 +92,7 @@ export const menuRouter = createTRPCRouter({
     )
     .mutation(async ({ input }) => {
       // Delete existing menu entries for this date
-      await db.delete(menus).where(eq(menus.date, input.date));
+      await db.delete(menuEntries).where(eq(menuEntries.date, input.date));
 
       // Insert new entries
       if (input.items.length > 0) {
@@ -91,7 +102,7 @@ export const menuRouter = createTRPCRouter({
           sortOrder: index,
         }));
 
-        await db.insert(menus).values(entries);
+        await db.insert(menuEntries).values(entries);
       }
 
       return { success: true, date: input.date };

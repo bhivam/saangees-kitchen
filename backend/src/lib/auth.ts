@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "../db/db";
-import { phoneNumber } from "better-auth/plugins";
+import { anonymous, phoneNumber } from "better-auth/plugins";
 import { env } from "../env";
 import { user } from "../db/schema";
 import { isAdminPhoneNumber } from "./admin-phones";
@@ -17,6 +17,9 @@ export const auth = betterAuth({
     },
   },
   plugins: [
+    anonymous({
+      onLinkAccount({ anonymousUser, newUser }) {},
+    }),
     phoneNumber({
       sendOTP: ({ phoneNumber, code }) => {
         console.log(`\nOTP for ${phoneNumber}: ${code}`);
