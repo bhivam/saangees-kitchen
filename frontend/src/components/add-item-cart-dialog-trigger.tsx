@@ -90,12 +90,6 @@ function AddItemDialogContent({ menuItem }: { menuItem: MenuItem }) {
                             modifierGroup.maxSelect ===
                               selectedModifierOptions.length;
 
-                          console.log(
-                            disabled,
-                            selected,
-                            selectedModifierOptions,
-                          );
-
                           return (
                             <label
                               key={option.id}
@@ -112,10 +106,6 @@ function AddItemDialogContent({ menuItem }: { menuItem: MenuItem }) {
                                   if (checked) {
                                     selectedModifierOptions.push(option.id);
                                   } else {
-                                    console.log(
-                                      selectedModifierOptions,
-                                      option.id,
-                                    );
                                     selectedModifierOptions.splice(
                                       0,
                                       selectedModifierOptions.length,
