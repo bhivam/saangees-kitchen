@@ -2,7 +2,7 @@ import { createTRPCRouter, publicProcedure, adminProcedure } from "..";
 import { z } from "zod";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "../../db/db";
-import { menuItems, menuEntries, menuEntries } from "../../db/schema";
+import { menuItems, menuEntries } from "../../db/schema";
 import { TRPCError } from "@trpc/server";
 
 export const menuRouter = createTRPCRouter({
@@ -13,7 +13,7 @@ export const menuRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      const menuEntries = await db
+      const menuEntriesResult = await db
         .select({
           id: menuEntries.id,
           date: menuEntries.date,
@@ -25,7 +25,7 @@ export const menuRouter = createTRPCRouter({
         .where(eq(menuEntries.date, input.date))
         .orderBy(menuEntries.sortOrder);
 
-      return menuEntries;
+      return menuEntriesResult;
     }),
 
   getByDateRange: publicProcedure
