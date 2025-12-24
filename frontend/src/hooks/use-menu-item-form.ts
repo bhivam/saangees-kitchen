@@ -36,6 +36,12 @@ function buildValidationSchema(menuItem: MenuItem) {
   });
 }
 
+export type MenuItemSelection = {
+  quantity: number;
+  itemId: string;
+  modifierSelections: Record<string, string[]>;
+};
+
 export function useMenuItemForm(menuItem: MenuItem) {
   const validationSchema = buildValidationSchema(menuItem);
 
@@ -48,7 +54,7 @@ export function useMenuItemForm(menuItem: MenuItem) {
           [],
         ]),
       ) as Record<string, string[]>,
-    },
+    } as Omit<MenuItemSelection, "itemId">,
     validators: {
       onSubmit: validationSchema,
     },
