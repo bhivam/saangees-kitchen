@@ -20,11 +20,16 @@ const cartSchema = z.object({
   ),
 });
 
-type Cart = z.infer<typeof cartSchema>;
+export type Cart = z.infer<typeof cartSchema>;
 
 const CART_KEY = "cart";
 
-export function addCartItem(itemSelection: MenuItemSelection) {
+export function removeCartItemLS(itemSelection: MenuItemSelection) {
+  console.log(itemSelection);
+  throw new Error("Unimplemented");
+}
+
+export function addCartItemLS(itemSelection: MenuItemSelection) {
   const currentCart = getCart();
 
   const groups = Object.entries(itemSelection.modifierSelections)
@@ -52,7 +57,7 @@ export function addCartItem(itemSelection: MenuItemSelection) {
   localStorage.setItem(CART_KEY, JSON.stringify(currentCart));
 }
 
-export function getCart(): Cart {
+export function getCartLS(): Cart {
   const cartString = localStorage.getItem(CART_KEY);
 
   let currentCart: Cart;

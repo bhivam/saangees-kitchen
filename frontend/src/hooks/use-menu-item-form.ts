@@ -1,6 +1,7 @@
 import type { MenuItem } from "@/components/customer-menu-view";
 import { useForm } from "@tanstack/react-form";
 import z from "zod";
+import { useCart } from "./use-cart";
 
 function buildValidationSchema(menuItem: MenuItem) {
   return z.object({
@@ -45,6 +46,8 @@ export type MenuItemSelection = {
 export function useMenuItemForm(menuItem: MenuItem) {
   const validationSchema = buildValidationSchema(menuItem);
 
+  const { addCartItem } = useCart();
+
   const form = useForm({
     defaultValues: {
       quantity: 1,
@@ -57,6 +60,9 @@ export function useMenuItemForm(menuItem: MenuItem) {
     } as Omit<MenuItemSelection, "itemId">,
     validators: {
       onSubmit: validationSchema,
+    },
+    onSubmit({ value }) {
+      addCartItem({ ...value, itemId: menuItem.id });
     },
   });
 

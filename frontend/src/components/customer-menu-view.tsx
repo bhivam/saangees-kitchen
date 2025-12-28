@@ -9,6 +9,7 @@ import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
 import { Apple, ShoppingCart } from "lucide-react";
 import { AddItemCartDialogTrigger } from "./add-item-cart-dialog-trigger";
+import { useCart } from "@/hooks/use-cart";
 
 type MenuEntry = RouterOutputs["menu"]["getByDateRange"][number];
 
@@ -143,6 +144,8 @@ export function CustomerMenuView() {
     }
   };
 
+  const { cart } = useCart();
+
   if (isLoading) {
     return (
       <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -172,7 +175,8 @@ export function CustomerMenuView() {
             <Button onClick={handleLogout}>Logout</Button>
           )}
           <Button>
-            <ShoppingCart />0
+            <ShoppingCart />
+            {Object.entries(cart.items).length}
           </Button>
         </div>
       </div>

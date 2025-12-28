@@ -147,7 +147,9 @@ function AddItemDialogContent({ menuItem }: { menuItem: MenuItem }) {
       </form.Field>
       <DialogFooter className="px-2 pt-2 mt-auto border-t-1 flex items-end">
         {/* TODO: Quantity Stepper */}
-        <Button>{`Add To Cart - ${formatCents(calculateTotalPrice())}`}</Button>
+        <Button
+          onClick={form.handleSubmit}
+        >{`Add To Cart - ${formatCents(calculateTotalPrice())}`}</Button>
       </DialogFooter>
     </DialogContent>
   );
