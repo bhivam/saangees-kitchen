@@ -11,11 +11,11 @@ import { Apple, ShoppingCart } from "lucide-react";
 import { AddItemCartDialogTrigger } from "./add-item-cart-dialog-trigger";
 import { useCart } from "@/hooks/use-cart";
 
-type MenuEntry = RouterOutputs["menu"]["getByDateRange"][number];
+export type MenuEntry = RouterOutputs["menu"]["getByDateRange"][number];
 
 export type MenuItem = MenuEntry["menuItem"];
 
-function getWeekDates(startDate: Date, days: number = 7): string[] {
+export function getWeekDates(startDate: Date, days: number = 7): string[] {
   const dates: string[] = [];
   for (let i = 0; i < days; i++) {
     const date = new Date(startDate);
@@ -25,7 +25,7 @@ function getWeekDates(startDate: Date, days: number = 7): string[] {
   return dates;
 }
 
-function formatDate(dateString: string): string {
+export function formatDate(dateString: string): string {
   const date = new Date(dateString + "T00:00:00");
   return date.toLocaleDateString("en-US", {
     weekday: "long",
@@ -34,21 +34,22 @@ function formatDate(dateString: string): string {
   });
 }
 
-function groupMenusByDate(menuEntries: MenuEntry[]): Map<string, MenuItem[]> {
-  const grouped = new Map<string, MenuItem[]>();
+function groupMenusByDate(menuEntries: MenuEntry[]): Map<string, MenuEntry[]> {
+  const grouped = new Map<string, MenuEntry[]>();
 
   for (const entry of menuEntries) {
     if (entry.date === null) continue;
     if (!grouped.has(entry.date)) {
       grouped.set(entry.date, []);
     }
-    grouped.get(entry.date)!.push(entry.menuItem);
+    grouped.get(entry.date)!.push(entry);
   }
 
   return grouped;
 }
 
-function MenuItemCard({ item: menuItem }: { item: MenuItem }) {
+function MenuItemCard({ entry }: { entry: MenuEntry }) {
+  const menuItem = entry.menuItem;
   return (
     <div
       key={menuItem.id}
@@ -61,25 +62,25 @@ function MenuItemCard({ item: menuItem }: { item: MenuItem }) {
           ${(menuItem.basePrice / 100).toFixed(2)}
         </span>
       </div>
-      <AddItemCartDialogTrigger menuItem={menuItem} />
+      <AddItemCartDialogTrigger menuItem={menuItem} menuEntryId={entry.id} />
     </div>
   );
 }
 
 function MenuDayCard({
   date,
-  items,
+  entries,
 }: {
   date: string;
-  items: MenuItem[] | undefined;
+  entries: MenuEntry[] | undefined;
 }) {
   return (
     <div>
       <h3 className="text-2xl font-bold">{formatDate(date)}</h3>
-      {items && items.length > 0 ? (
+      {entries && entries.length > 0 ? (
         <div className="space-y-4">
-          {items.map((item) => (
-            <MenuItemCard key={item.id} item={item} />
+          {entries.map((entry) => (
+            <MenuItemCard key={entry.id} entry={entry} />
           ))}
         </div>
       ) : (
@@ -174,20 +175,22 @@ export function CustomerMenuView() {
           ) : (
             <Button onClick={handleLogout}>Logout</Button>
           )}
-          <Button>
-            <ShoppingCart />
-            {Object.entries(cart.items).length}
-          </Button>
+          <Link to="/cart">
+            <Button>
+              <ShoppingCart />
+              {Object.entries(cart.items).length}
+            </Button>
+          </Link>
         </div>
       </div>
 
       <div className="space-y-3">
         {currentWeekDates.flatMap((date) => {
-          const items = groupedMenus.get(date);
+          const entries = groupedMenus.get(date);
 
-          if (!items || items.length === 0) return [];
+          if (!entries || entries.length === 0) return [];
 
-          return [<MenuDayCard key={date} date={date} items={items} />];
+          return [<MenuDayCard key={date} date={date} entries={entries} />];
         })}
       </div>
     </div>

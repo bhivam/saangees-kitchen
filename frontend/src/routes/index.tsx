@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CustomerMenuView } from "@/components/customer-menu-view";
 import { authClient } from "@/lib/auth-client";
-import { CartProvider } from "@/context/cart-context";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -15,10 +14,6 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
-  return (
-    <CartProvider>
-      <CustomerMenuView />
-    </CartProvider>
-  );
+  return <CustomerMenuView />;
 }
 

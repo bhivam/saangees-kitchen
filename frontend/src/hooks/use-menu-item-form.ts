@@ -40,10 +40,11 @@ function buildValidationSchema(menuItem: MenuItem) {
 export type MenuItemSelection = {
   quantity: number;
   itemId: string;
+  menuEntryId: string;
   modifierSelections: Record<string, string[]>;
 };
 
-export function useMenuItemForm(menuItem: MenuItem) {
+export function useMenuItemForm(menuItem: MenuItem, menuEntryId: string) {
   const validationSchema = buildValidationSchema(menuItem);
 
   const { addCartItem } = useCart();
@@ -57,12 +58,12 @@ export function useMenuItemForm(menuItem: MenuItem) {
           [],
         ]),
       ) as Record<string, string[]>,
-    } as Omit<MenuItemSelection, "itemId">,
+    } as Omit<MenuItemSelection, "itemId" | "menuEntryId">,
     validators: {
       onSubmit: validationSchema,
     },
     onSubmit({ value }) {
-      addCartItem({ ...value, itemId: menuItem.id });
+      addCartItem({ ...value, itemId: menuItem.id, menuEntryId });
     },
   });
 

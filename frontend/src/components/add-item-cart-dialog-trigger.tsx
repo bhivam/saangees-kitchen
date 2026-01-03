@@ -15,7 +15,13 @@ import { formatCents } from "@/lib/utils";
 import { useMenuItemForm } from "@/hooks/use-menu-item-form";
 import { Checkbox } from "./ui/checkbox";
 
-export function AddItemCartDialogTrigger({ menuItem }: { menuItem: MenuItem }) {
+export function AddItemCartDialogTrigger({
+  menuItem,
+  menuEntryId
+}: {
+  menuItem: MenuItem;
+  menuEntryId: string;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -30,13 +36,19 @@ export function AddItemCartDialogTrigger({ menuItem }: { menuItem: MenuItem }) {
           <Plus />
         </Button>
       </DialogTrigger>
-      <AddItemDialogContent menuItem={menuItem} />
+      <AddItemDialogContent menuItem={menuItem} menuEntryId={menuEntryId} />
     </Dialog>
   );
 }
 
-function AddItemDialogContent({ menuItem }: { menuItem: MenuItem }) {
-  const { form, calculateTotalPrice } = useMenuItemForm(menuItem);
+function AddItemDialogContent({
+  menuItem,
+  menuEntryId
+}: {
+  menuItem: MenuItem;
+  menuEntryId: string;
+}) {
+  const { form, calculateTotalPrice } = useMenuItemForm(menuItem, menuEntryId);
 
   return (
     <DialogContent

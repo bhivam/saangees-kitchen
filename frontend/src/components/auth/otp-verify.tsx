@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
 
@@ -47,7 +46,6 @@ export function OTPVerify({ phoneNumber, onBack }: OTPVerifyProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="otp">Enter OTP Code</Label>
         <Input
           id="otp"
           type="text"
@@ -58,7 +56,7 @@ export function OTPVerify({ phoneNumber, onBack }: OTPVerifyProps) {
           autoFocus
           maxLength={6}
         />
-        <p className="text-sm text-muted-foreground">Sent to {phoneNumber}</p>
+        <p className="text-sm text-muted-foreground">rent to </p>
       </div>
 
       <div className="space-y-2">

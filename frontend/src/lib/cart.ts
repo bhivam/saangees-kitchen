@@ -4,10 +4,44 @@ import z from "zod";
 const UUID =
   "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}";
 
-// itemId|groupId(optionId;optionId),groupId(optionId)
+// menuEntryId:itemId|groupId(optionId;optionId),groupId(optionId)
 const SKUID_REGEX = new RegExp(
-  `^${UUID}\\|(?:${UUID}\\(${UUID}(?:;${UUID})*\\)(?:,${UUID}\\(${UUID}(?:;${UUID})*\\))*)?$`,
+  `^${UUID}:${UUID}\\|(?:${UUID}\\(${UUID}(?:;${UUID})*\\)(?:,${UUID}\\(${UUID}(?:;${UUID})*\\))*)?$`,
 );
+
+export function parseSkuId(id: string) {
+  if (!SKUID_REGEX.test(id)) {
+    throw new Error(`Invalid SKU id: ${id}`);
+  }
+
+  const [menuEntryAndItem, rest] = id.split("|");
+  const [menuEntryId, itemId] = menuEntryAndItem.split(":");
+
+  if (rest.length === 0) {
+    return { menuEntryId, itemId, modifierGroups: {} as Record<string, string[]> };
+  }
+
+  const groupChunks = rest.split(",");
+
+  const modifierGroups = groupChunks.reduce(
+    (result, chunk) => {
+      const openParen = chunk.indexOf("(");
+      const closeParen = chunk.indexOf(")");
+
+      const groupId = chunk.slice(0, openParen);
+      const inside = chunk.slice(openParen + 1, closeParen);
+
+      const optionIds = inside.length === 0 ? [] : inside.split(";");
+
+      result[groupId] = optionIds;
+
+      return result;
+    },
+    {} as Record<string, string[]>,
+  );
+
+  return { menuEntryId, itemId, modifierGroups };
+}
 
 export const skuidSchema = z
   .string()
@@ -24,13 +58,12 @@ export type Cart = z.infer<typeof cartSchema>;
 
 const CART_KEY = "cart";
 
-export function removeCartItemLS(itemSelection: MenuItemSelection) {
-  console.log(itemSelection);
-  throw new Error("Unimplemented");
+export function removeCartItemLS(_itemSelection: MenuItemSelection) {
+  throw new Error("removeCartItemLS Unimplemented");
 }
 
 export function addCartItemLS(itemSelection: MenuItemSelection) {
-  const currentCart = getCart();
+  const currentCart = getCartLS();
 
   const groups = Object.entries(itemSelection.modifierSelections)
     .map(([groupId, optionIds]) => {
@@ -46,7 +79,7 @@ export function addCartItemLS(itemSelection: MenuItemSelection) {
     .sort((a, b) => a.groupId.localeCompare(b.groupId))
     .map(({ groupId, opts }) => `${groupId}(${opts.join(";")})`);
 
-  const cartItemId = `${itemSelection.itemId}|${groups.join(",")}`;
+  const cartItemId = `${itemSelection.menuEntryId}:${itemSelection.itemId}|${groups.join(",")}`;
 
   const currentCartItem = currentCart.items[cartItemId] ?? { quantity: 0 };
 
