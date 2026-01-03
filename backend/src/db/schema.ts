@@ -92,6 +92,9 @@ export const menuItemModifierGroupsRelations = relations(
 
 export const orders = pgTable("orders", {
   id: uuid("id").defaultRandom().primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   status: text("status").notNull(),
@@ -99,7 +102,11 @@ export const orders = pgTable("orders", {
   total: integer("total_amount"),
 });
 
-export const ordersRelations = relations(orders, ({ many }) => ({
+export const ordersRelations = relations(orders, ({ one, many }) => ({
+  user: one(user, {
+    fields: [orders.userId],
+    references: [user.id],
+  }),
   items: many(orderItems),
 }));
 
@@ -110,7 +117,7 @@ export const orderItems = pgTable("order_items", {
     .references(() => orders.id),
   menuEntryId: uuid("menu_entry_id")
     .notNull()
-    .references(() => menuItems.id),
+    .references(() => menuEntries.id),
   quantity: integer("quantity").notNull().default(1),
   specialInstructions: text("special_instructions"),
   itemPrice: integer("item_price").notNull(),
@@ -250,6 +257,7 @@ export const verification = pgTable(
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
+  orders: many(orders),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -265,4 +273,7 @@ export const accountRelations = relations(account, ({ one }) => ({
     references: [user.id],
   }),
 }));
+
+// END OF GENERATED CODE
+// add orders many to userRelations whenever using
 
