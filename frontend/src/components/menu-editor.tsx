@@ -216,7 +216,6 @@ export function MenuEditor() {
         )}
       </div>
 
-      {/* Right column: Calendar */}
       <div className="w-96 p-6 flex flex-col">
         <h2 className="text-2xl font-bold mb-6">Select Date</h2>
         <div className="flex justify-center">
@@ -228,14 +227,6 @@ export function MenuEditor() {
             className="border rounded-lg p-4"
           />
         </div>
-        {dateString && (
-          <div className="mt-6 p-4 bg-muted rounded-lg">
-            <div className="text-sm font-semibold text-muted-foreground">
-              Selected Date
-            </div>
-            <div className="text-lg font-bold mt-1">{dateString}</div>
-          </div>
-        )}
       </div>
     </div>
   );

@@ -18,7 +18,11 @@ export function parseSkuId(id: string) {
   const [menuEntryId, itemId] = menuEntryAndItem.split(":");
 
   if (rest.length === 0) {
-    return { menuEntryId, itemId, modifierGroups: {} as Record<string, string[]> };
+    return {
+      menuEntryId,
+      itemId,
+      modifierGroups: {} as Record<string, string[]>,
+    };
   }
 
   const groupChunks = rest.split(",");
@@ -50,7 +54,7 @@ export const skuidSchema = z
 const cartSchema = z.object({
   items: z.record(
     skuidSchema,
-    z.object({ quantity: z.number().nonnegative() }),
+    z.object({ quantity: z.number().nonnegative() }).optional(),
   ),
 });
 
@@ -58,13 +62,7 @@ export type Cart = z.infer<typeof cartSchema>;
 
 const CART_KEY = "cart";
 
-export function removeCartItemLS(_itemSelection: MenuItemSelection) {
-  throw new Error("removeCartItemLS Unimplemented");
-}
-
-export function addCartItemLS(itemSelection: MenuItemSelection) {
-  const currentCart = getCartLS();
-
+function getCartItemId(itemSelection: MenuItemSelection) {
   const groups = Object.entries(itemSelection.modifierSelections)
     .map(([groupId, optionIds]) => {
       const opts = Array.from(new Set((optionIds ?? []).filter(Boolean))).sort(
@@ -79,7 +77,36 @@ export function addCartItemLS(itemSelection: MenuItemSelection) {
     .sort((a, b) => a.groupId.localeCompare(b.groupId))
     .map(({ groupId, opts }) => `${groupId}(${opts.join(";")})`);
 
-  const cartItemId = `${itemSelection.menuEntryId}:${itemSelection.itemId}|${groups.join(",")}`;
+  return `${itemSelection.menuEntryId}:${itemSelection.itemId}|${groups.join(",")}`;
+}
+
+export function removeCartItemLS(itemSelection: MenuItemSelection) {
+  const currentCart = getCartLS();
+
+  const cartItemId = getCartItemId(itemSelection);
+
+  const cartItemMetaData = currentCart.items[cartItemId];
+
+  if (!cartItemMetaData) return;
+
+  const newQuantity = Math.max(
+    0,
+    cartItemMetaData.quantity - itemSelection.quantity,
+  );
+
+  if (newQuantity === 0) {
+    delete currentCart.items[cartItemId];
+  } else {
+    currentCart.items[cartItemId] = { quantity: newQuantity };
+  }
+
+  localStorage.setItem(CART_KEY, JSON.stringify(currentCart));
+}
+
+export function addCartItemLS(itemSelection: MenuItemSelection) {
+  const currentCart = getCartLS();
+
+  const cartItemId = getCartItemId(itemSelection);
 
   const currentCartItem = currentCart.items[cartItemId] ?? { quantity: 0 };
 
@@ -104,5 +131,9 @@ export function getCartLS(): Cart {
   }
 
   return currentCart;
+}
+
+export function setCartLS(cart: Cart) {
+  localStorage.setItem(CART_KEY, JSON.stringify(cart));
 }
 

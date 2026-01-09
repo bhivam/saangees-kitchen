@@ -5,12 +5,17 @@ import {
   inferAdditionalFields,
   phoneNumberClient,
 } from "better-auth/client/plugins";
-import { auth } from "@/router-types/lib/auth";
 
 export const authClient = createAuthClient({
   plugins: [
+    inferAdditionalFields({
+      user: {
+        isAdmin: {
+          type: "boolean",
+        },
+      },
+    }),
     phoneNumberClient(),
-    inferAdditionalFields<typeof auth>(),
     anonymousClient(),
   ],
   baseURL: env.VITE_SERVER_URL,

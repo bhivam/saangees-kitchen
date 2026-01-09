@@ -44,7 +44,11 @@ export type MenuItemSelection = {
   modifierSelections: Record<string, string[]>;
 };
 
-export function useMenuItemForm(menuItem: MenuItem, menuEntryId: string) {
+export function useMenuItemForm(
+  menuItem: MenuItem,
+  menuEntryId: string,
+  onSuccess?: () => void,
+) {
   const validationSchema = buildValidationSchema(menuItem);
 
   const { addCartItem } = useCart();
@@ -64,6 +68,7 @@ export function useMenuItemForm(menuItem: MenuItem, menuEntryId: string) {
     },
     onSubmit({ value }) {
       addCartItem({ ...value, itemId: menuItem.id, menuEntryId });
+      onSuccess?.();
     },
   });
 

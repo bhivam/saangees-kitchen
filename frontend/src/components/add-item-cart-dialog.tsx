@@ -7,17 +7,18 @@ import {
   DialogHeader,
 } from "./ui/dialog";
 import { Button } from "./ui/button";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Minus } from "lucide-react";
 import { useState } from "react";
 import type { MenuItem } from "./customer-menu-view";
 import { DialogClose, DialogDescription } from "@radix-ui/react-dialog";
 import { formatCents } from "@/lib/utils";
 import { useMenuItemForm } from "@/hooks/use-menu-item-form";
 import { Checkbox } from "./ui/checkbox";
+import { QuantityStepper } from "./quantity-stepper";
 
-export function AddItemCartDialogTrigger({
+export function AddItemCartDialog({
   menuItem,
-  menuEntryId
+  menuEntryId,
 }: {
   menuItem: MenuItem;
   menuEntryId: string;
@@ -36,19 +37,29 @@ export function AddItemCartDialogTrigger({
           <Plus />
         </Button>
       </DialogTrigger>
-      <AddItemDialogContent menuItem={menuItem} menuEntryId={menuEntryId} />
+      <AddItemDialogContent
+        menuItem={menuItem}
+        menuEntryId={menuEntryId}
+        setOpen={setOpen}
+      />
     </Dialog>
   );
 }
 
 function AddItemDialogContent({
   menuItem,
-  menuEntryId
+  menuEntryId,
+  setOpen,
 }: {
   menuItem: MenuItem;
   menuEntryId: string;
+  setOpen: (open: boolean) => void;
 }) {
-  const { form, calculateTotalPrice } = useMenuItemForm(menuItem, menuEntryId);
+  const { form, calculateTotalPrice } = useMenuItemForm(
+    menuItem,
+    menuEntryId,
+    () => setOpen(false),
+  );
 
   return (
     <DialogContent
@@ -157,11 +168,25 @@ function AddItemDialogContent({
           );
         }}
       </form.Field>
-      <DialogFooter className="px-2 pt-2 mt-auto border-t-1 flex items-end">
-        {/* TODO: Quantity Stepper */}
-        <Button
-          onClick={form.handleSubmit}
-        >{`Add To Cart - ${formatCents(calculateTotalPrice())}`}</Button>
+      <DialogFooter className="px-2 pt-2 mt-auto border-t-1">
+        <form.Field name="quantity">
+          {(field) => (
+            <div className="flex items-center justify-between w-full gap-4">
+              <QuantityStepper
+                value={field.state.value}
+                onReduce={() =>
+                  field.handleChange(Math.max(1, field.state.value - 1))
+                }
+                onIncrease={() => field.handleChange(field.state.value + 1)}
+                reduceDisabled={field.state.value <= 1}
+                increaseDisabled={false}
+              />
+              <Button className="flex-1" onClick={form.handleSubmit}>
+                {`Add To Cart - ${formatCents(calculateTotalPrice())}`}
+              </Button>
+            </div>
+          )}
+        </form.Field>
       </DialogFooter>
     </DialogContent>
   );

@@ -8,6 +8,7 @@ import { Toaster } from "sonner";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 import { CartProvider } from "./context/cart-context";
+import { CartCleanup } from "./components/cart-cleanup";
 
 const queryClient = new QueryClient();
 
@@ -38,6 +39,7 @@ createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={queryClient}>
       <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
         <CartProvider>
+          <CartCleanup />
           <RouterProvider router={router} />
         </CartProvider>
       </TRPCProvider>

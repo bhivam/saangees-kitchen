@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { authClient } from "@/lib/auth-client";
 import { useCart } from "@/hooks/use-cart";
 import { parseSkuId, type Cart } from "@/lib/cart";
@@ -10,6 +10,9 @@ import {
   type MenuEntry,
 } from "@/components/customer-menu-view";
 import { formatCents } from "@/lib/utils";
+import { Minus, Plus, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { QuantityStepper } from "@/components/quantity-stepper";
 
 export const Route = createFileRoute("/cart")({
   component: Cart,
@@ -23,9 +26,7 @@ export const Route = createFileRoute("/cart")({
 });
 
 function Cart() {
-  const { cart } = useCart();
-
-  // TODO for now use function that will hydrate cart data from cache without any verification
+  const { cart, setCart } = useCart();
 
   const trpc = useTRPC();
 
@@ -39,124 +40,156 @@ function Cart() {
   );
 
   function hydrateCartFromMenu(cart: Cart, menuEntries: MenuEntry[]) {
-    return Object.entries(cart.items).flatMap(([skuId, metadata]) => {
-      try {
-        const { menuEntryId, itemId, modifierGroups } = parseSkuId(skuId);
+    const validSkuIds = new Set<string>();
 
-        const entry = menuEntries.find((entry) => entry.id === menuEntryId);
+    const hydratedItems = Object.entries(cart.items).flatMap(
+      ([skuId, metadata]) => {
+        try {
+          const { menuEntryId, itemId, modifierGroups } = parseSkuId(skuId);
 
-        if (!entry) {
-          console.warn(`Failed to hydrate data for menu entry ${menuEntryId}.`);
-          return [];
-        }
+          const entry = menuEntries.find((entry) => entry.id === menuEntryId);
 
-        // Verify itemId matches (sanity check)
-        if (entry.menuItem.id !== itemId) {
-          console.warn(`Item ID mismatch in SKU ${skuId}`);
-          return [];
-        }
-
-        let totalPrice = entry.menuItem.basePrice;
-
-        const prunedModifierGroups: {
-          groupId: string;
-          modifierGroup: {
-            id: string;
-            name: string;
-            options: {
-              id: string;
-              name: string;
-              priceDelta: number;
-            }[];
-          };
-        }[] = [];
-
-        for (const [groupId, optionIds] of Object.entries(modifierGroups)) {
-          const menuGroup = entry.menuItem.modifierGroups.find(
-            (mg) => mg.groupId === groupId,
-          );
-
-          if (!menuGroup) {
+          if (!entry) {
             console.warn(
-              `Modifier group ${groupId} not found for item ${itemId}.`,
+              `Failed to hydrate data for menu entry ${menuEntryId}.`,
             );
             return [];
           }
 
-          const selectedOptions: Array<{
-            id: string;
-            name: string;
-            priceDelta: number;
-          }> = [];
+          // Verify itemId matches (sanity check)
+          if (entry.menuItem.id !== itemId) {
+            console.warn(`Item ID mismatch in SKU ${skuId}`);
+            return [];
+          }
 
-          for (const optionId of optionIds) {
-            const option = menuGroup.modifierGroup.options.find(
-              (o) => o.id === optionId,
+          let totalPrice = entry.menuItem.basePrice;
+
+          const prunedModifierGroups: {
+            groupId: string;
+            modifierGroup: {
+              id: string;
+              name: string;
+              options: {
+                id: string;
+                name: string;
+                priceDelta: number;
+              }[];
+            };
+          }[] = [];
+
+          for (const [groupId, optionIds] of Object.entries(modifierGroups)) {
+            const menuGroup = entry.menuItem.modifierGroups.find(
+              (mg) => mg.groupId === groupId,
             );
 
-            if (!option) {
+            if (!menuGroup) {
               console.warn(
-                `Modifier option ${optionId} not found in group ${groupId} for item ${itemId}.`,
+                `Modifier group ${groupId} not found for item ${itemId}.`,
               );
               return [];
             }
 
-            totalPrice += option.priceDelta;
+            const selectedOptions: Array<{
+              id: string;
+              name: string;
+              priceDelta: number;
+            }> = [];
 
-            selectedOptions.push({
-              id: option.id,
-              name: option.name,
-              priceDelta: option.priceDelta,
+            for (const optionId of optionIds) {
+              const option = menuGroup.modifierGroup.options.find(
+                (o) => o.id === optionId,
+              );
+
+              if (!option) {
+                console.warn(
+                  `Modifier option ${optionId} not found in group ${groupId} for item ${itemId}.`,
+                );
+                return [];
+              }
+
+              totalPrice += option.priceDelta;
+
+              selectedOptions.push({
+                id: option.id,
+                name: option.name,
+                priceDelta: option.priceDelta,
+              });
+            }
+
+            prunedModifierGroups.push({
+              groupId: menuGroup.groupId,
+              modifierGroup: {
+                id: menuGroup.modifierGroup.id,
+                name: menuGroup.modifierGroup.name,
+                options: selectedOptions,
+              },
             });
           }
 
-          prunedModifierGroups.push({
-            groupId: menuGroup.groupId,
-            modifierGroup: {
-              id: menuGroup.modifierGroup.id,
-              name: menuGroup.modifierGroup.name,
-              options: selectedOptions,
-            },
-          });
-        }
+          validSkuIds.add(skuId);
 
-        return [
-          {
-            skuId,
-            date: entry.date,
-            id: entry.menuItem.id,
-            totalPrice,
-            name: entry.menuItem.name,
-            description: entry.menuItem.description,
-            basePrice: entry.menuItem.basePrice,
-            ...metadata,
-            modifierGroups: prunedModifierGroups,
-          },
-        ];
-      } catch (error) {
-        console.warn(
-          `Invalid or outdated SKU format: ${skuId}. Removing from cart.`,
-        );
-        return [];
-      }
-    });
+          return [
+            {
+              skuId,
+              date: entry.date,
+              id: entry.menuItem.id,
+              totalPrice,
+              name: entry.menuItem.name,
+              description: entry.menuItem.description,
+              basePrice: entry.menuItem.basePrice,
+              ...metadata,
+              modifierGroups: prunedModifierGroups,
+            },
+          ];
+        } catch (error) {
+          console.warn(
+            `Invalid or outdated SKU format: ${skuId}. Removing from cart.`,
+          );
+          return [];
+        }
+      },
+    );
+
+    return { hydratedItems, validSkuIds };
   }
+
+  const navigate = useNavigate();
 
   if (isLoading || !menuEntries) {
     return <div>loading</div>;
   }
 
-  const hydratedSelectedItems = hydrateCartFromMenu(cart, menuEntries);
+  const { hydratedItems: hydratedSelectedItems, validSkuIds } =
+    hydrateCartFromMenu(cart, menuEntries);
 
-  const totalCents = hydratedSelectedItems.reduce(
-    (sum, item) => sum + (item.totalPrice ?? 0) * (item.quantity ?? 1),
-    0,
+  const currentSkuIds = Object.keys(cart.items);
+  const hasInvalidItems = currentSkuIds.some(
+    (skuId) => !validSkuIds.has(skuId),
   );
+
+  if (hasInvalidItems) {
+    const filteredCart: Cart = {
+      items: Object.fromEntries(
+        currentSkuIds
+          .filter((skuId) => validSkuIds.has(skuId))
+          .map((skuId) => [skuId, cart.items[skuId]]),
+      ),
+    };
+    setCart(filteredCart);
+  }
+
+  // TODO quantity edit and removal options
 
   return (
     <div className="relative">
-      {/* Main content */}
-      <div className="container mx-auto max-w-4xl px-2 py-4 pb-24">
+      <div className="flex justify-between px-2 pt-2">
+        <h3 className="text-3xl">Your Cart</h3>
+        <Button variant="ghost" onClick={() => navigate({ to: "/" })}>
+          <X className="size-6" />
+        </Button>
+      </div>
+
+      <div className="container mx-auto max-w-4xl px-2 py-2 pb-24">
         <div className="flex flex-col">
           {allDates.map((date) => {
             const itemsForDate = hydratedSelectedItems.filter(
@@ -166,12 +199,12 @@ function Cart() {
             if (itemsForDate.length === 0) return null;
 
             return (
-              <div className="border-b border-black" key={date}>
+              <div key={date}>
                 <p className="text-xl font-bold">{formatDate(date)}</p>
 
                 {itemsForDate.map((item) => (
                   <div
-                    className="flex items-center justify-between border-b last:border-none"
+                    className="flex items-center justify-between border-t min-h-18"
                     key={item.skuId}
                   >
                     <div className="flex flex-col">
@@ -187,8 +220,13 @@ function Cart() {
                       </p>
                       <p>{formatCents(item.totalPrice)}</p>
                     </div>
-
-                    <div>{item.quantity}</div>
+                    <QuantityStepper
+                      value={item.quantity ?? 0}
+                      onReduce={() => {}}
+                      onIncrease={() => {}}
+                      reduceDisabled={false}
+                      increaseDisabled={false}
+                    />
                   </div>
                 ))}
               </div>
@@ -203,11 +241,11 @@ function Cart() {
             type="button"
             className="w-full rounded-md bg-black px-4 py-3 text-white font-semibold disabled:opacity-50"
             onClick={() => {
-              // navigate to checkout / open modal / submit
+              // Go to checkout
             }}
             disabled={hydratedSelectedItems.length === 0}
           >
-            Checkout • {formatCents(totalCents)}
+            Go To Checkout
           </button>
         </div>
       </div>

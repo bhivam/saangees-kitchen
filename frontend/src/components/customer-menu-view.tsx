@@ -8,7 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
 import { Apple, ShoppingCart } from "lucide-react";
-import { AddItemCartDialogTrigger } from "./add-item-cart-dialog-trigger";
+import { AddItemCartDialog } from "./add-item-cart-dialog";
 import { useCart } from "@/hooks/use-cart";
 
 export type MenuEntry = RouterOutputs["menu"]["getByDateRange"][number];
@@ -62,7 +62,7 @@ function MenuItemCard({ entry }: { entry: MenuEntry }) {
           ${(menuItem.basePrice / 100).toFixed(2)}
         </span>
       </div>
-      <AddItemCartDialogTrigger menuItem={menuItem} menuEntryId={entry.id} />
+      <AddItemCartDialog menuItem={menuItem} menuEntryId={entry.id} />
     </div>
   );
 }
@@ -161,7 +161,7 @@ export function CustomerMenuView() {
 
   const groupedMenus = menuEntries
     ? groupMenusByDate(menuEntries)
-    : new Map<string, MenuItem[]>();
+    : new Map<string, MenuEntry[]>();
 
   return (
     <div className="container mx-auto px-2 py-4 max-w-4xl">
