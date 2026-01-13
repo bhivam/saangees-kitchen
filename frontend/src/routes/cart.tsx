@@ -10,7 +10,7 @@ import {
   type MenuEntry,
 } from "@/components/customer-menu-view";
 import { formatCents } from "@/lib/utils";
-import { Minus, Plus, X } from "lucide-react";
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { QuantityStepper } from "@/components/quantity-stepper";
 
@@ -241,7 +241,7 @@ function Cart() {
             type="button"
             className="w-full rounded-md bg-black px-4 py-3 text-white font-semibold disabled:opacity-50"
             onClick={() => {
-              // Go to checkout
+              navigate({ to: "/checkout" });
             }}
             disabled={hydratedSelectedItems.length === 0}
           >

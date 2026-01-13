@@ -1,31 +1,20 @@
-import { useState } from "react";
-import { PhoneInput } from "./phone-input";
-import { OTPVerify } from "./otp-verify";
+import { useNavigate } from "@tanstack/react-router";
+import { AuthForm } from "./auth-form";
 
 export function LoginForm() {
-  const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
+  const navigate = useNavigate();
+
+  const handleSuccess = (user: any) => {
+    if (user.isAdmin) {
+      navigate({ to: "/dashboard" });
+    } else {
+      navigate({ to: "/" });
+    }
+  };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <div className="w-full max-w-md">
-        <div>
-          <p>
-            {phoneNumber
-              ? `Enter the verification code sent to ${phoneNumber}`
-              : "Enter your phone number to receive an OTP"}
-          </p>
-        </div>
-        <div>
-          {phoneNumber ? (
-            <OTPVerify
-              phoneNumber={phoneNumber}
-              onBack={() => setPhoneNumber(null)}
-            />
-          ) : (
-            <PhoneInput onOTPSent={setPhoneNumber} />
-          )}
-        </div>
-      </div>
+    <div className="bg-background flex min-h-screen items-center justify-center p-4">
+      <AuthForm onSuccess={handleSuccess} />
     </div>
   );
 }

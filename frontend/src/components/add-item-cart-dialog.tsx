@@ -7,7 +7,7 @@ import {
   DialogHeader,
 } from "./ui/dialog";
 import { Button } from "./ui/button";
-import { Plus, X, Minus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { useState } from "react";
 import type { MenuItem } from "./customer-menu-view";
 import { DialogClose, DialogDescription } from "@radix-ui/react-dialog";

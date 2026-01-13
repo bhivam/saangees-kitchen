@@ -1,4 +1,5 @@
 import { authClient } from "@/lib/auth-client";
+import { isProfileIncomplete } from "@/lib/auth-utils";
 
 export function useAuth() {
   const { data: betterAuthSession, isPending } = authClient.useSession();
@@ -9,10 +10,11 @@ export function useAuth() {
   return {
     user,
     session,
-    isLoading: isPending,
+    isPending,
     isAuthenticated: !!user,
     isAdmin: user?.isAdmin,
     isCustomer: !user?.isAdmin,
+    isProfileIncomplete: isProfileIncomplete(user),
   };
 }
 

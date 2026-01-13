@@ -1,5 +1,5 @@
 import type { ClassValue } from "clsx";
-import { cn } from "../utils";
+import { cn } from "@/lib/utils";
 import { useTRPC } from "../trpc";
 import { useQuery } from "@tanstack/react-query";
 

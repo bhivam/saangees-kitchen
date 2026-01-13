@@ -13,12 +13,11 @@ export function AuthGuard({
   children,
   requireAuth = true,
   requireAdmin = false,
-  redirectTo = "/login"
+  redirectTo = "/login",
 }: AuthGuardProps) {
-  const { isAuthenticated, isAdmin, isLoading } = useAuth();
+  const { isAuthenticated, isAdmin, isPending } = useAuth();
 
-  // Show loading state while checking auth
-  if (isLoading) {
+  if (isPending) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -29,20 +28,22 @@ export function AuthGuard({
     );
   }
 
-  // Check authentication requirement
   if (requireAuth && !isAuthenticated) {
     return <Navigate to={redirectTo} />;
   }
 
-  // Check admin requirement
   if (requireAdmin && !isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900">Access Denied</h1>
-          <p className="mt-2 text-gray-600">You need admin privileges to access this page.</p>
+          <p className="mt-2 text-gray-600">
+            You need admin privileges to access this page.
+          </p>
           <p className="mt-4 text-sm text-gray-500">
-            <a href="/" className="text-blue-600 hover:underline">Go to home</a>
+            <a href="/" className="text-blue-600 hover:underline">
+              Go to home
+            </a>
           </p>
         </div>
       </div>
@@ -51,3 +52,4 @@ export function AuthGuard({
 
   return <>{children}</>;
 }
+

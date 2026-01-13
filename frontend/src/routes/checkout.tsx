@@ -1,6 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { authClient } from "@/lib/auth-client";
 import { useAuth } from "@/hooks/use-auth";
+import { Button } from "@/components/ui/button";
+import { X } from "lucide-react";
+import { FullPageSpinner } from "@/components/full-page-spinner";
+import { AuthForm } from "@/components/auth/auth-form";
 
 export const Route = createFileRoute("/checkout")({
   component: Checkout,
@@ -14,23 +18,52 @@ export const Route = createFileRoute("/checkout")({
 });
 
 // TODO
-// Add a phone number OTP that shows up if user not logged in
-//   disable rest of form until this is completed
-// Show current delivery settings and allow customers to edit them
-// Payment method (cash/zelle, venmo, credit/debit)
 // Cart Summary
-// Subtotal
-// Delivery Fee
-// Payment Processing Fee & Taxes
+// Total
 // Place Order Button
 
 function Checkout() {
-  const { user } = useAuth();
+  const { user, isPending, isProfileIncomplete } = useAuth();
+  const navigate = useNavigate();
 
-  if (!user) {
-    throw new Error("Impossible state: Must have at least anonymous user");
+  if (isPending) {
+    return <FullPageSpinner>Loading Checkout...</FullPageSpinner>;
   }
 
-  return "checkout";
+  if (!user) {
+    throw new Error("User must exist at least in anonymous state");
+  }
+
+  const showAuthForm = user.isAnonymous || isProfileIncomplete;
+
+  if (showAuthForm) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <AuthForm
+          title={{
+            phone: "Sign in to checkout",
+            otp: "Verify your number",
+            name: "Complete your profile",
+          }}
+          description={{
+            phone: "We need your phone number to complete this order",
+            otp: "Enter the verification code we sent you",
+            name: "Tell us your name to complete your order",
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col px-2">
+      <div className="flex justify-between pt-2">
+        <h3 className="text-3xl">Checkout</h3>
+        <Button variant="ghost" onClick={() => navigate({ to: "/" })}>
+          <X className="size-6" />
+        </Button>
+      </div>
+    </div>
+  );
 }
 

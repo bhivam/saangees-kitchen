@@ -22,6 +22,7 @@ export const auth = betterAuth({
     }),
     phoneNumber({
       sendOTP: ({ phoneNumber, code }) => {
+        // TODO check when last one was sent and don't send if it was too soon
         console.log(`\nOTP for ${phoneNumber}: ${code}`);
       },
       async callbackOnVerification(data) {

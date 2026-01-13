@@ -9,8 +9,6 @@ export async function createContext({ req }: CreateExpressContextOptions) {
     headers: fromNodeHeaders(req.headers),
   });
 
-
-
   if (!sessionData) {
     return { isAdmin: false };
   }
