@@ -5,6 +5,17 @@ import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import { FullPageSpinner } from "@/components/full-page-spinner";
 import { AuthForm } from "@/components/auth/auth-form";
+import { useCart } from "@/hooks/use-cart";
+import { useTRPC } from "@/trpc";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { parseSkuId, type Cart } from "@/lib/cart";
+import {
+  formatDate,
+  getWeekDates,
+  type MenuEntry,
+} from "@/components/customer-menu-view";
+import { formatCents } from "@/lib/utils";
+import { useState } from "react";
 
 export const Route = createFileRoute("/checkout")({
   component: Checkout,
@@ -17,16 +28,89 @@ export const Route = createFileRoute("/checkout")({
   },
 });
 
-// TODO
-// Cart Summary
-// Total
-// Place Order Button
+function hydrateCartFromMenu(cart: Cart, menuEntries: MenuEntry[]) {
+  const hydratedItems = Object.entries(cart.items).flatMap(
+    ([skuId, metadata]) => {
+      try {
+        const { menuEntryId, itemId, modifierGroups } = parseSkuId(skuId);
+
+        const entry = menuEntries.find((entry) => entry.id === menuEntryId);
+
+        if (!entry) return [];
+
+        if (entry.menuItem.id !== itemId) return [];
+
+        let totalPrice = entry.menuItem.basePrice;
+
+        const selectedModifierOptionIds: string[] = [];
+
+        for (const [groupId, optionIds] of Object.entries(modifierGroups)) {
+          const menuGroup = entry.menuItem.modifierGroups.find(
+            (mg) => mg.groupId === groupId,
+          );
+
+          if (!menuGroup) return [];
+
+          for (const optionId of optionIds) {
+            const option = menuGroup.modifierGroup.options.find(
+              (o) => o.id === optionId,
+            );
+
+            if (!option) return [];
+
+            totalPrice += option.priceDelta;
+            selectedModifierOptionIds.push(optionId);
+          }
+        }
+
+        return [
+          {
+            skuId,
+            menuEntryId,
+            date: entry.date,
+            name: entry.menuItem.name,
+            totalPrice,
+            modifierOptionIds: selectedModifierOptionIds,
+            quantity: metadata?.quantity ?? 1,
+          },
+        ];
+      } catch {
+        return [];
+      }
+    },
+  );
+
+  return hydratedItems;
+}
 
 function Checkout() {
   const { user, isPending, isProfileIncomplete } = useAuth();
   const navigate = useNavigate();
+  const { cart, setCart } = useCart();
+  const trpc = useTRPC();
 
-  if (isPending) {
+  const [orderSuccess, setOrderSuccess] = useState<{
+    orderId: string;
+    total: number;
+  } | null>(null);
+
+  const today = new Date();
+  const allDates = getWeekDates(today, 7);
+
+  const { data: menuEntries, isLoading: menuLoading } = useQuery(
+    trpc.menu.getByDateRange.queryOptions({ dates: allDates }),
+  );
+
+  const createOrderMutation = useMutation(
+    trpc.orders.createOrder.mutationOptions({
+      onSuccess: (data) => {
+        setCart({ items: {} });
+        setOrderSuccess(data);
+      },
+    }),
+  );
+
+  if (isPending || menuLoading) {
     return <FullPageSpinner>Loading Checkout...</FullPageSpinner>;
   }
 
@@ -55,6 +139,32 @@ function Checkout() {
     );
   }
 
+  if (orderSuccess) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center p-4">
+        <h2 className="mb-4 text-2xl font-bold">Order Placed!</h2>
+        <p className="mb-2">Order ID: {orderSuccess.orderId}</p>
+        <p className="mb-6">Total: {formatCents(orderSuccess.total)}</p>
+        <Button onClick={() => navigate({ to: "/" })}>Back to Menu</Button>
+      </div>
+    );
+  }
+
+  const hydratedItems = menuEntries ? hydrateCartFromMenu(cart, menuEntries) : [];
+  const total = hydratedItems.reduce(
+    (sum, item) => sum + item.totalPrice * item.quantity,
+    0,
+  );
+
+  const handlePlaceOrder = () => {
+    const orderItems = hydratedItems.map((item) => ({
+      menuEntryId: item.menuEntryId,
+      quantity: item.quantity,
+      modifierOptionIds: item.modifierOptionIds,
+    }));
+    createOrderMutation.mutate({ items: orderItems });
+  };
+
   return (
     <div className="flex flex-col px-2">
       <div className="flex justify-between pt-2">
@@ -63,6 +173,47 @@ function Checkout() {
           <X className="size-6" />
         </Button>
       </div>
+
+      <div className="py-4">
+        {allDates.map((date) => {
+          const itemsForDate = hydratedItems.filter(
+            (item) => item.date === date,
+          );
+
+          if (itemsForDate.length === 0) return null;
+
+          return (
+            <div key={date} className="mb-4">
+              <p className="text-lg font-bold">{formatDate(date)}</p>
+              {itemsForDate.map((item) => (
+                <div
+                  key={item.skuId}
+                  className="flex justify-between border-b py-2"
+                >
+                  <div>
+                    <p className="font-semibold">{item.name}</p>
+                    <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
+                  </div>
+                  <p>{formatCents(item.totalPrice * item.quantity)}</p>
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex justify-between border-t py-4 text-lg font-bold">
+        <span>Total</span>
+        <span>{formatCents(total)}</span>
+      </div>
+
+      <Button
+        onClick={handlePlaceOrder}
+        disabled={createOrderMutation.isPending || hydratedItems.length === 0}
+        className="w-full py-6 text-lg"
+      >
+        {createOrderMutation.isPending ? "Placing Order..." : "Place Order"}
+      </Button>
     </div>
   );
 }

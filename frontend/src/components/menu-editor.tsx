@@ -30,7 +30,7 @@ export function MenuEditor() {
   const [selectedItems, setSelectedItems] = useState<MenuItem[]>([]);
 
   const dateString = selectedDate
-    ? selectedDate.toISOString().split("T")[0]
+    ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`
     : "";
 
   const { data: allItems } = useQuery(

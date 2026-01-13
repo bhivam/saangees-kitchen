@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import {
   Sidebar,
   SidebarContent,
@@ -6,16 +7,17 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import {
-  merchantDashboardNavData,
-  type useMerchantNavigation,
-} from "@/hooks/use-merchant-navigation";
+import { Home, Menu, Sheet, SlidersHorizontal, Clipboard } from "lucide-react";
 
-export function MerchantDashboardSidebar({
-  className,
-  location,
-  setLocation,
-}: { className?: string } & ReturnType<typeof useMerchantNavigation>) {
+const dashboardNavItems = [
+  { name: "Home", icon: Home, to: "/dashboard/home" },
+  { name: "Item Manager", icon: Clipboard, to: "/dashboard/items" },
+  { name: "Modifier Manager", icon: SlidersHorizontal, to: "/dashboard/modifiers" },
+  { name: "Menu Editor", icon: Menu, to: "/dashboard/menu" },
+  { name: "Orders", icon: Sheet, to: "/dashboard/orders" },
+] as const;
+
+export function MerchantDashboardSidebar({ className }: { className?: string }) {
   return (
     <Sidebar className={className}>
       <SidebarHeader>
@@ -23,13 +25,16 @@ export function MerchantDashboardSidebar({
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
-          {merchantDashboardNavData.map(({ name, icon: Icon }) => (
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                className={location === name ? "bg-sidebar-accent" : ""}
-                onClick={() => setLocation(name)}
-              >
-                <Icon /> <p>{name}</p>
+          {dashboardNavItems.map(({ name, icon: Icon, to }) => (
+            <SidebarMenuItem key={name}>
+              <SidebarMenuButton asChild>
+                <Link
+                  to={to}
+                  activeProps={{ className: "bg-sidebar-accent" }}
+                >
+                  <Icon />
+                  <p>{name}</p>
+                </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
@@ -38,4 +43,3 @@ export function MerchantDashboardSidebar({
     </Sidebar>
   );
 }
-

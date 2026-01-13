@@ -100,6 +100,7 @@ export const orders = pgTable("orders", {
   status: text("status").notNull(),
   specialInstructions: text("special_instructions"),
   total: integer("total_amount"),
+  centsPaid: integer("cents_paid").notNull().default(0),
 });
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({
@@ -121,6 +122,7 @@ export const orderItems = pgTable("order_items", {
   quantity: integer("quantity").notNull().default(1),
   specialInstructions: text("special_instructions"),
   itemPrice: integer("item_price").notNull(),
+  baggedAt: timestamp("bagged_at"),
 });
 
 export const orderItemsRelations = relations(orderItems, ({ one, many }) => ({
