@@ -47,7 +47,7 @@ export function parseSkuId(id: string) {
   return { menuEntryId, itemId, modifierGroups };
 }
 
-export const skuidSchema = z
+const skuidSchema = z
   .string()
   .regex(SKUID_REGEX, "Invalid cart item id format");
 

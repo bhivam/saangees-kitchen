@@ -191,7 +191,7 @@ function OptionRow({
   );
 }
 
-export function AddModifierDialogContent({
+function AddModifierDialogContent({
   form,
   createModifierGroupMutation,
   isEditMode,
