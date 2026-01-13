@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useTRPC } from "@/trpc";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -11,9 +12,18 @@ import {
 import { Button } from "./ui/button";
 import { Edit, Trash } from "lucide-react";
 
-export function MenuManagerTable() {
+export function MenuManagerTable({ search }: { search: string }) {
   const trpc = useTRPC();
   const menuItemsQuery = useQuery(trpc.menuItems.getMenuItems.queryOptions());
+
+  const filteredItems = useMemo(() => {
+    if (!menuItemsQuery.data) return [];
+    const query = search.toLowerCase().trim();
+    if (!query) return menuItemsQuery.data;
+    return menuItemsQuery.data.filter((item) =>
+      item.name.toLowerCase().includes(query),
+    );
+  }, [menuItemsQuery.data, search]);
 
   if (menuItemsQuery.isLoading) return "loading...";
 
@@ -23,18 +33,17 @@ export function MenuManagerTable() {
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead className="w-5/6">Name</TableHead>
-          <TableHead>Price</TableHead>
-          <TableHead />
-          <TableHead />
+          <TableHead className="w-1/6">Name</TableHead>
+          <TableHead className="w-2/3">Price</TableHead>
+          <TableHead className="w-1/12" />
+          <TableHead className="w-1/12" />
         </TableRow>
       </TableHeader>
       <TableBody>
-        {menuItemsQuery.data.map((item) => (
-          <TableRow>
+        {filteredItems.map((item) => (
+          <TableRow key={item.id}>
             <TableCell>{item.name}</TableCell>
             <TableCell>${(item.basePrice / 100).toFixed(2)}</TableCell>
-            {/* TODO make these buttons do something */}
             <TableCell>
               <Button variant="ghost" size="icon">
                 <Edit />

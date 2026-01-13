@@ -1,6 +1,6 @@
 import { createTRPCRouter, publicProcedure, adminProcedure } from "..";
 import { z } from "zod";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, isNull, and } from "drizzle-orm";
 import { db } from "../../db/db";
 import { menuItems, menuEntries } from "../../db/schema";
 import { TRPCError } from "@trpc/server";
@@ -22,7 +22,9 @@ export const menuRouter = createTRPCRouter({
         })
         .from(menuEntries)
         .innerJoin(menuItems, eq(menuEntries.menuItemId, menuItems.id))
-        .where(eq(menuEntries.date, input.date))
+        .where(
+          and(eq(menuEntries.date, input.date), isNull(menuItems.deletedAt)),
+        )
         .orderBy(menuEntries.sortOrder);
 
       return menuEntriesResult;
@@ -61,9 +63,79 @@ export const menuRouter = createTRPCRouter({
       if (!menuEntriesResult)
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      return menuEntriesResult;
+      // Filter out entries where the menu item has been deleted
+      // and filter out deleted modifier groups/options from the nested data
+      const filteredResult = menuEntriesResult
+        .filter((entry) => entry.menuItem.deletedAt === null)
+        .map((entry) => ({
+          ...entry,
+          menuItem: {
+            ...entry.menuItem,
+            modifierGroups: entry.menuItem.modifierGroups
+              .filter((mg) => mg.modifierGroup.deletedAt === null)
+              .map((mg) => ({
+                ...mg,
+                modifierGroup: {
+                  ...mg.modifierGroup,
+                  options: mg.modifierGroup.options.filter(
+                    (opt) => opt.deletedAt === null,
+                  ),
+                },
+              })),
+          },
+        }));
+
+      return filteredResult;
     }),
 
+  // Unified save mutation - always deletes existing and inserts new entries
+  // This prevents duplicates and handles both create and update cases
+  save: adminProcedure
+    .input(
+      z.object({
+        date: z.string(),
+        items: z.array(z.string()),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      // Deduplicate items (in case frontend sends duplicates)
+      const uniqueItems = [...new Set(input.items)];
+
+      return await db.transaction(async (tx) => {
+        // Delete existing menu entries for this date
+        await tx.delete(menuEntries).where(eq(menuEntries.date, input.date));
+
+        // Insert new entries
+        if (uniqueItems.length > 0) {
+          const entries = uniqueItems.map((itemId, index) => ({
+            date: input.date,
+            menuItemId: itemId,
+            sortOrder: index,
+          }));
+
+          await tx.insert(menuEntries).values(entries);
+        }
+
+        // Return the new menu entries with full menu item data
+        const newEntries = await tx
+          .select({
+            id: menuEntries.id,
+            date: menuEntries.date,
+            sortOrder: menuEntries.sortOrder,
+            menuItem: menuItems,
+          })
+          .from(menuEntries)
+          .innerJoin(menuItems, eq(menuEntries.menuItemId, menuItems.id))
+          .where(
+            and(eq(menuEntries.date, input.date), isNull(menuItems.deletedAt)),
+          )
+          .orderBy(menuEntries.sortOrder);
+
+        return { date: input.date, entries: newEntries };
+      });
+    }),
+
+  // Keep create and update as aliases for backwards compatibility
   create: adminProcedure
     .input(
       z.object({
@@ -72,15 +144,36 @@ export const menuRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input }) => {
-      const entries = input.items.map((itemId, index) => ({
-        date: input.date,
-        menuItemId: itemId,
-        sortOrder: index,
-      }));
+      const uniqueItems = [...new Set(input.items)];
 
-      await db.insert(menuEntries).values(entries);
+      return await db.transaction(async (tx) => {
+        await tx.delete(menuEntries).where(eq(menuEntries.date, input.date));
 
-      return { success: true, date: input.date };
+        if (uniqueItems.length > 0) {
+          const entries = uniqueItems.map((itemId, index) => ({
+            date: input.date,
+            menuItemId: itemId,
+            sortOrder: index,
+          }));
+          await tx.insert(menuEntries).values(entries);
+        }
+
+        const newEntries = await tx
+          .select({
+            id: menuEntries.id,
+            date: menuEntries.date,
+            sortOrder: menuEntries.sortOrder,
+            menuItem: menuItems,
+          })
+          .from(menuEntries)
+          .innerJoin(menuItems, eq(menuEntries.menuItemId, menuItems.id))
+          .where(
+            and(eq(menuEntries.date, input.date), isNull(menuItems.deletedAt)),
+          )
+          .orderBy(menuEntries.sortOrder);
+
+        return { date: input.date, entries: newEntries };
+      });
     }),
 
   update: adminProcedure
@@ -91,21 +184,36 @@ export const menuRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input }) => {
-      // Delete existing menu entries for this date
-      await db.delete(menuEntries).where(eq(menuEntries.date, input.date));
+      const uniqueItems = [...new Set(input.items)];
 
-      // Insert new entries
-      if (input.items.length > 0) {
-        const entries = input.items.map((itemId, index) => ({
-          date: input.date,
-          menuItemId: itemId,
-          sortOrder: index,
-        }));
+      return await db.transaction(async (tx) => {
+        await tx.delete(menuEntries).where(eq(menuEntries.date, input.date));
 
-        await db.insert(menuEntries).values(entries);
-      }
+        if (uniqueItems.length > 0) {
+          const entries = uniqueItems.map((itemId, index) => ({
+            date: input.date,
+            menuItemId: itemId,
+            sortOrder: index,
+          }));
+          await tx.insert(menuEntries).values(entries);
+        }
 
-      return { success: true, date: input.date };
+        const newEntries = await tx
+          .select({
+            id: menuEntries.id,
+            date: menuEntries.date,
+            sortOrder: menuEntries.sortOrder,
+            menuItem: menuItems,
+          })
+          .from(menuEntries)
+          .innerJoin(menuItems, eq(menuEntries.menuItemId, menuItems.id))
+          .where(
+            and(eq(menuEntries.date, input.date), isNull(menuItems.deletedAt)),
+          )
+          .orderBy(menuEntries.sortOrder);
+
+        return { date: input.date, entries: newEntries };
+      });
     }),
 });
 

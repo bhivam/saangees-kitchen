@@ -17,6 +17,7 @@ export const menuItems = pgTable("menu_items", {
   name: text("name").notNull(),
   description: text("description").notNull(),
   basePrice: integer("base_price").notNull(),
+  deletedAt: timestamp("deleted_at"),
 });
 
 export const menuItemsRelations = relations(menuItems, ({ many }) => ({
@@ -28,6 +29,7 @@ export const modifierGroups = pgTable("modifier_groups", {
   name: text("name").notNull(),
   minSelect: integer("min_select").notNull().default(0),
   maxSelect: integer("max_select"),
+  deletedAt: timestamp("deleted_at"),
 });
 
 export const modifierGroupsRelations = relations(
@@ -47,6 +49,7 @@ export const modifierOptions = pgTable(
       .references(() => modifierGroups.id),
     name: text("name").notNull(),
     priceDelta: integer("price_delta").notNull().default(0),
+    deletedAt: timestamp("deleted_at"),
   },
   (t) => [unique().on(t.groupId, t.name)],
 );
@@ -162,14 +165,18 @@ export const orderItemModifiersRelations = relations(
   }),
 );
 
-export const menuEntries = pgTable("menus_entries", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  date: date("date"),
-  menuItemId: uuid("menu_item_id")
-    .notNull()
-    .references(() => menuItems.id),
-  sortOrder: integer("sort_order"),
-});
+export const menuEntries = pgTable(
+  "menus_entries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    date: date("date").notNull(),
+    menuItemId: uuid("menu_item_id")
+      .notNull()
+      .references(() => menuItems.id),
+    sortOrder: integer("sort_order").notNull(),
+  },
+  (t) => [unique("menu_entry_date_item").on(t.date, t.menuItemId)],
+);
 
 export const menusRelations = relations(menuEntries, ({ one }) => ({
   menuItem: one(menuItems, {

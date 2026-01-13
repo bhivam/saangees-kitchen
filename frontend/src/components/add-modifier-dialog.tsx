@@ -10,13 +10,39 @@ import { Label } from "./ui/label";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Plus, Minus, Trash2 } from "lucide-react";
-import { useAddModifierForm } from "@/hooks/use-add-modifier-form";
+import {
+  useAddModifierForm,
+  type ModifierGroupResult,
+} from "@/hooks/use-add-modifier-form";
 import { Dialog, DialogTrigger } from "@radix-ui/react-dialog";
 import { useState } from "react";
 
-export function AddModifierDialog() {
-  const [open, setOpen] = useState(false);
-  const addModifierForm = useAddModifierForm({ setOpen });
+interface AddModifierDialogProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onCreated?: (result: ModifierGroupResult) => void;
+  editData?: ModifierGroupResult;
+}
+
+export function AddModifierDialog({
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+  onCreated,
+  editData,
+}: AddModifierDialogProps = {}) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : uncontrolledOpen;
+  const setOpen = isControlled
+    ? controlledOnOpenChange ?? (() => {})
+    : setUncontrolledOpen;
+
+  const addModifierForm = useAddModifierForm({
+    setOpen,
+    onSuccess: onCreated,
+    editData,
+  });
   const { form } = addModifierForm;
 
   return (
@@ -27,12 +53,14 @@ export function AddModifierDialog() {
         setOpen(nextOpen);
       }}
     >
-      <DialogTrigger asChild>
-        <Button>
-          <p>Add New Modifier</p>
-          <Plus />
-        </Button>
-      </DialogTrigger>
+      {!isControlled && (
+        <DialogTrigger asChild>
+          <Button>
+            <p>Add New Modifier</p>
+            <Plus />
+          </Button>
+        </DialogTrigger>
+      )}
       <AddModifierDialogContent {...addModifierForm} />
     </Dialog>
   );
@@ -166,13 +194,18 @@ function OptionRow({
 export function AddModifierDialogContent({
   form,
   createModifierGroupMutation,
+  isEditMode,
 }: ReturnType<typeof useAddModifierForm>) {
   return (
     <DialogContent className="xl:max-w-[700px] sm:max-w-[425px]">
       <DialogHeader>
-        <DialogTitle>Create New Modifier</DialogTitle>
+        <DialogTitle>
+          {isEditMode ? "Edit Modifier" : "Create New Modifier"}
+        </DialogTitle>
         <DialogDescription>
-          Changes will not save unless you click create modifier.
+          {isEditMode
+            ? "Changes will not save unless you click update modifier."
+            : "Changes will not save unless you click create modifier."}
         </DialogDescription>
       </DialogHeader>
 
@@ -328,8 +361,12 @@ export function AddModifierDialogContent({
           onClick={form.handleSubmit}
         >
           {createModifierGroupMutation.isPending
-            ? "Creating Modifier..."
-            : "Create Modifier"}
+            ? isEditMode
+              ? "Updating Modifier..."
+              : "Creating Modifier..."
+            : isEditMode
+              ? "Update Modifier"
+              : "Create Modifier"}
         </Button>
       </DialogFooter>
     </DialogContent>

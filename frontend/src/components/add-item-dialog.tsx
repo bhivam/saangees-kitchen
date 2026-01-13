@@ -14,29 +14,52 @@ import { Textarea } from "./ui/textarea";
 import { Button } from "./ui/button";
 import { Plus } from "lucide-react";
 import { useState } from "react";
-import { useAddItemForm } from "@/hooks/use-add-item-form";
+import {
+  useAddItemForm,
+  type MenuItemResult,
+} from "@/hooks/use-add-item-form";
+import { ModifierGroupSelector } from "./modifier-group-selector";
+import { AddModifierDialog } from "./add-modifier-dialog";
 
-export function AddItemDialog() {
-  const [open, setOpen] = useState(false);
+interface AddItemDialogProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  editData?: MenuItemResult;
+}
 
-  const addItemForm = useAddItemForm({ setOpen });
+export function AddItemDialog({
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+  editData,
+}: AddItemDialogProps = {}) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : uncontrolledOpen;
+  const setOpen = isControlled
+    ? controlledOnOpenChange ?? (() => {})
+    : setUncontrolledOpen;
+
+  const addItemForm = useAddItemForm({ setOpen, editData });
 
   const { form } = addItemForm;
 
   return (
     <Dialog
       open={open}
-      onOpenChange={(open) => {
-        if (!open) form.reset();
-        setOpen(open);
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) form.reset();
+        setOpen(nextOpen);
       }}
     >
-      <DialogTrigger asChild>
-        <Button>
-          <p>Add New Item</p>
-          <Plus />
-        </Button>
-      </DialogTrigger>
+      {!isControlled && (
+        <DialogTrigger asChild>
+          <Button>
+            <p>Add New Item</p>
+            <Plus />
+          </Button>
+        </DialogTrigger>
+      )}
       <AddItemDialogContent {...addItemForm} />
     </Dialog>
   );
@@ -45,23 +68,33 @@ export function AddItemDialog() {
 function AddItemDialogContent({
   form,
   createMenuItemMutation,
+  isEditMode,
 }: ReturnType<typeof useAddItemForm>) {
+  const [createModifierOpen, setCreateModifierOpen] = useState(false);
+
   return (
-    <DialogContent className="xl:max-w-[700px] sm:max-w-[425px]">
+    <DialogContent className="xl:max-w-[700px] sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
       <DialogHeader>
-        <DialogTitle>Create New Item</DialogTitle>
+        <DialogTitle>
+          {isEditMode ? "Edit Item" : "Create New Item"}
+        </DialogTitle>
         <DialogDescription>
-          Changes will not save unless you click create item.
+          {isEditMode
+            ? "Changes will not save unless you click update item."
+            : "Changes will not save unless you click create item."}
         </DialogDescription>
       </DialogHeader>
 
       <div className="grid gap-2">
         <div className="flex flex-row gap-2">
           <form.Field name="name">
-            {({ handleChange }) => (
+            {({ handleChange, state: { value } }) => (
               <div className="w-3/4 grid gap-3">
                 <Label htmlFor="name-1">Name</Label>
-                <Input onChange={(e) => handleChange(e.target.value)} />
+                <Input
+                  value={value}
+                  onChange={(e) => handleChange(e.target.value)}
+                />
               </div>
             )}
           </form.Field>
@@ -94,11 +127,54 @@ function AddItemDialogContent({
           </form.Field>
         </div>
         <form.Field name="description">
-          {({ handleChange }) => (
+          {({ handleChange, state: { value } }) => (
             <div className="grid gap-3">
               <Label htmlFor="name-1">Description</Label>
-              <Textarea onChange={(e) => handleChange(e.target.value)} />
+              <Textarea
+                value={value}
+                onChange={(e) => handleChange(e.target.value)}
+              />
             </div>
+          )}
+        </form.Field>
+
+        {/* Modifier Groups Section */}
+        <form.Field name="selectedModifierGroups">
+          {({ state: { value }, handleChange }) => (
+            <>
+              <ModifierGroupSelector
+                selectedGroups={value}
+                onSelectGroup={(group) => {
+                  handleChange([...value, group]);
+                }}
+                onRemoveGroup={(groupId) => {
+                  handleChange(value.filter((g) => g.groupId !== groupId));
+                }}
+                onReorder={(from, to) => {
+                  const result = [...value];
+                  const [item] = result.splice(from, 1);
+                  result.splice(to, 0, item);
+                  handleChange(result);
+                }}
+                onCreateNew={() => setCreateModifierOpen(true)}
+              />
+              <AddModifierDialog
+                open={createModifierOpen}
+                onOpenChange={setCreateModifierOpen}
+                onCreated={(newGroup) => {
+                  handleChange([
+                    ...value,
+                    {
+                      groupId: newGroup.id,
+                      groupName: newGroup.name,
+                      minSelect: newGroup.minSelect,
+                      maxSelect: newGroup.maxSelect,
+                    },
+                  ]);
+                  setCreateModifierOpen(false);
+                }}
+              />
+            </>
           )}
         </form.Field>
       </div>
@@ -111,8 +187,12 @@ function AddItemDialogContent({
           onClick={form.handleSubmit}
         >
           {createMenuItemMutation.isPending
-            ? "Creating Item..."
-            : "Create Item"}
+            ? isEditMode
+              ? "Updating Item..."
+              : "Creating Item..."
+            : isEditMode
+              ? "Update Item"
+              : "Create Item"}
         </Button>
       </DialogFooter>
     </DialogContent>
