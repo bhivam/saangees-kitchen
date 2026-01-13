@@ -12,7 +12,10 @@ import { useState } from "react";
 import type { MenuItem } from "./customer-menu-view";
 import { DialogClose, DialogDescription } from "@radix-ui/react-dialog";
 import { formatCents } from "@/lib/utils";
-import { useMenuItemForm } from "@/hooks/use-menu-item-form";
+import {
+  useMenuItemForm,
+  type CartItemEditData,
+} from "@/hooks/use-menu-item-form";
 import { Checkbox } from "./ui/checkbox";
 import { QuantityStepper } from "./quantity-stepper";
 
@@ -46,20 +49,24 @@ export function AddItemCartDialog({
   );
 }
 
-function AddItemDialogContent({
+export function AddItemDialogContent({
   menuItem,
   menuEntryId,
   setOpen,
+  editData,
 }: {
   menuItem: MenuItem;
   menuEntryId: string;
   setOpen: (open: boolean) => void;
+  editData?: CartItemEditData;
 }) {
-  const { form, calculateTotalPrice } = useMenuItemForm(
-    menuItem,
-    menuEntryId,
-    () => setOpen(false),
-  );
+  const {
+    form,
+    calculateTotalPrice,
+    isEditMode,
+    modifierErrors,
+    clearModifierErrors,
+  } = useMenuItemForm(menuItem, menuEntryId, () => setOpen(false), editData);
 
   return (
     <DialogContent
@@ -84,6 +91,8 @@ function AddItemDialogContent({
               {menuItem.modifierGroups
                 .sort((modiferGroup) => modiferGroup.sortOrder)
                 .map(({ modifierGroup }) => {
+                  const errorMessage = modifierErrors[modifierGroup.id];
+
                   return (
                     <div key={modifierGroup.id}>
                       <div>
@@ -103,13 +112,12 @@ function AddItemDialogContent({
                           const selectedModifierOptions =
                             field.state.value[modifierGroup.id];
 
-                          const selected = selectedModifierOptions.find(
-                            (selectedModifierOptionId) =>
-                              selectedModifierOptionId === option.id,
+                          const isSelected = selectedModifierOptions.includes(
+                            option.id,
                           );
 
                           const disabled =
-                            !selected &&
+                            !isSelected &&
                             modifierGroup.maxSelect ===
                               selectedModifierOptions.length;
 
@@ -119,6 +127,7 @@ function AddItemDialogContent({
                               className="flex items-center gap-3 p-2"
                             >
                               <Checkbox
+                                checked={isSelected}
                                 disabled={disabled}
                                 onCheckedChange={(checked) => {
                                   if (checked === "indeterminate")
@@ -138,6 +147,7 @@ function AddItemDialogContent({
                                       ),
                                     );
                                   }
+                                  clearModifierErrors();
                                   field.handleChange((prev) => ({
                                     ...prev,
                                     [modifierGroup.id]: [
@@ -161,6 +171,11 @@ function AddItemDialogContent({
                           );
                         })}
                       </div>
+                      {errorMessage && (
+                        <p className="text-sm text-red-500 mt-1">
+                          {errorMessage}
+                        </p>
+                      )}
                     </div>
                   );
                 })}
@@ -182,7 +197,9 @@ function AddItemDialogContent({
                 increaseDisabled={false}
               />
               <Button className="flex-1" onClick={form.handleSubmit}>
-                {`Add To Cart - ${formatCents(calculateTotalPrice())}`}
+                {isEditMode
+                  ? `Update Cart - ${formatCents(calculateTotalPrice())}`
+                  : `Add To Cart - ${formatCents(calculateTotalPrice())}`}
               </Button>
             </div>
           )}
@@ -191,4 +208,3 @@ function AddItemDialogContent({
     </DialogContent>
   );
 }
-

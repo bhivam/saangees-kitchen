@@ -32,9 +32,9 @@ const menuManagementItems = [
 ] as const;
 
 const orderItems = [
-  { name: "Cooking", icon: ChefHat, to: "/dashboard/orders/cooking" },
-  { name: "Bagging", icon: ShoppingBag, to: "/dashboard/orders/bagging" },
-  { name: "Payment", icon: CreditCard, to: "/dashboard/orders/payment" },
+  { name: "Cooking", icon: ChefHat, to: "/dashboard/cooking" },
+  { name: "Bagging", icon: ShoppingBag, to: "/dashboard/bagging" },
+  { name: "Payment", icon: CreditCard, to: "/dashboard/payment" },
 ] as const;
 
 export function MerchantDashboardSidebar({ className }: { className?: string }) {

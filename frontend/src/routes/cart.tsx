@@ -10,9 +10,12 @@ import {
   type MenuEntry,
 } from "@/components/customer-menu-view";
 import { formatCents } from "@/lib/utils";
-import { X } from "lucide-react";
+import { X, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { QuantityStepper } from "@/components/quantity-stepper";
+import { useState } from "react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { AddItemDialogContent } from "@/components/add-item-cart-dialog";
 
 export const Route = createFileRoute("/cart")({
   component: Cart,
@@ -25,8 +28,16 @@ export const Route = createFileRoute("/cart")({
   },
 });
 
+type EditingItem = {
+  skuId: string;
+  menuEntry: MenuEntry;
+  quantity: number;
+  modifierSelections: Record<string, string[]>;
+};
+
 function Cart() {
-  const { cart, setCart } = useCart();
+  const { cart, setCart, updateCartItemQuantity, removeCartItem } = useCart();
+  const [editingItem, setEditingItem] = useState<EditingItem | null>(null);
 
   const trpc = useTRPC();
 
@@ -131,6 +142,7 @@ function Cart() {
           return [
             {
               skuId,
+              menuEntryId,
               date: entry.date,
               id: entry.menuItem.id,
               totalPrice,
@@ -178,65 +190,114 @@ function Cart() {
     setCart(filteredCart);
   }
 
-  // TODO quantity edit and removal options
+  const handleEditItem = (item: (typeof hydratedSelectedItems)[0]) => {
+    const entry = menuEntries.find((e) => e.id === item.menuEntryId);
+    if (!entry) return;
+
+    // Build modifierSelections from the hydrated modifierGroups
+    const modifierSelections: Record<string, string[]> = {};
+    for (const { modifierGroup } of item.modifierGroups) {
+      modifierSelections[modifierGroup.id] = modifierGroup.options.map(
+        (o) => o.id,
+      );
+    }
+
+    setEditingItem({
+      skuId: item.skuId,
+      menuEntry: entry,
+      quantity: item.quantity ?? 1,
+      modifierSelections,
+    });
+  };
 
   return (
-    <div className="relative">
-      <div className="flex justify-between px-2 pt-2">
+    <div className="flex min-h-screen flex-col">
+      <div className="flex justify-between px-4 pt-4">
         <h3 className="text-3xl">Your Cart</h3>
         <Button variant="ghost" onClick={() => navigate({ to: "/" })}>
           <X className="size-6" />
         </Button>
       </div>
 
-      <div className="container mx-auto max-w-4xl px-2 py-2 pb-24">
-        <div className="flex flex-col">
-          {allDates.map((date) => {
-            const itemsForDate = hydratedSelectedItems.filter(
-              (item) => item.date! === date,
-            );
+      <div className="flex flex-1 flex-col px-4 pb-20">
+        {hydratedSelectedItems.length === 0 ? (
+          <div className="flex flex-1 flex-col items-center justify-center text-center">
+            <p className="text-lg text-muted-foreground mb-4">
+              Your cart is empty
+            </p>
+            <Button variant="link" onClick={() => navigate({ to: "/" })}>
+              Click here to add items
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col">
+            {allDates.map((date) => {
+              const itemsForDate = hydratedSelectedItems.filter(
+                (item) => item.date! === date,
+              );
 
-            if (itemsForDate.length === 0) return null;
+              if (itemsForDate.length === 0) return null;
 
-            return (
-              <div key={date}>
-                <p className="text-xl font-bold">{formatDate(date)}</p>
+              return (
+                <div key={date}>
+                  <p className="text-xl font-bold">{formatDate(date)}</p>
 
-                {itemsForDate.map((item) => (
-                  <div
-                    className="flex items-center justify-between border-t min-h-18"
-                    key={item.skuId}
-                  >
-                    <div className="flex flex-col">
-                      <p className="text-lg font-semibold">{item.name}</p>
-                      <p className="text-sm font-bold text-slate-700">
-                        {item.modifierGroups
-                          .flatMap(({ modifierGroup }: any) =>
-                            modifierGroup.options.map(
-                              (option: any) => option.name,
-                            ),
-                          )
-                          .join(", ")}
-                      </p>
-                      <p>{formatCents(item.totalPrice)}</p>
+                  {itemsForDate.map((item) => (
+                    <div
+                      className="flex items-center justify-between border-t min-h-18"
+                      key={item.skuId}
+                    >
+                      <div
+                        className="flex flex-col flex-1 cursor-pointer py-2"
+                        onClick={() => handleEditItem(item)}
+                      >
+                        <p className="text-lg font-semibold">{item.name}</p>
+                        <p className="text-sm font-bold text-slate-700">
+                          {item.modifierGroups
+                            .flatMap(({ modifierGroup }: any) =>
+                              modifierGroup.options.map(
+                                (option: any) => option.name,
+                              ),
+                            )
+                            .join(", ")}
+                        </p>
+                        <p>{formatCents(item.totalPrice)}</p>
+                      </div>
+                      <QuantityStepper
+                        value={item.quantity ?? 0}
+                        onReduce={() => {
+                          const newQty = (item.quantity ?? 0) - 1;
+                          if (newQty <= 0) {
+                            removeCartItem(item.skuId);
+                          } else {
+                            updateCartItemQuantity(item.skuId, newQty);
+                          }
+                        }}
+                        onIncrease={() => {
+                          updateCartItemQuantity(
+                            item.skuId,
+                            (item.quantity ?? 0) + 1,
+                          );
+                        }}
+                        reduceDisabled={false}
+                        increaseDisabled={false}
+                        reduceIcon={
+                          (item.quantity ?? 0) <= 1 ? (
+                            <Trash2 className="size-4" />
+                          ) : undefined
+                        }
+                      />
                     </div>
-                    <QuantityStepper
-                      value={item.quantity ?? 0}
-                      onReduce={() => {}}
-                      onIncrease={() => {}}
-                      reduceDisabled={false}
-                      increaseDisabled={false}
-                    />
-                  </div>
-                ))}
-              </div>
-            );
-          })}
-        </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-50 border-t bg-white/90 backdrop-blur">
-        <div className="container mx-auto max-w-4xl px-2 py-3">
+        <div className="mx-auto max-w-4xl px-4 py-3">
           <button
             type="button"
             className="w-full rounded-md bg-black px-4 py-3 text-white font-semibold disabled:opacity-50"
@@ -249,6 +310,33 @@ function Cart() {
           </button>
         </div>
       </div>
+
+      {editingItem && (
+        <Dialog
+          open={!!editingItem}
+          onOpenChange={(open) => {
+            if (!open) setEditingItem(null);
+          }}
+        >
+          <DialogContent
+            className="min-w-full h-full rounded-none p-0"
+            showCloseButton={false}
+          >
+            <AddItemDialogContent
+              menuItem={editingItem.menuEntry.menuItem}
+              menuEntryId={editingItem.menuEntry.id}
+              setOpen={(open) => {
+                if (!open) setEditingItem(null);
+              }}
+              editData={{
+                skuId: editingItem.skuId,
+                quantity: editingItem.quantity,
+                modifierSelections: editingItem.modifierSelections,
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import type { MenuItem } from "@/components/customer-menu-view";
 import { useForm } from "@tanstack/react-form";
 import z from "zod";
 import { useCart } from "./use-cart";
+import { useState } from "react";
 
 function buildValidationSchema(menuItem: MenuItem) {
   return z.object({
@@ -17,7 +18,7 @@ function buildValidationSchema(menuItem: MenuItem) {
           if (selectedCount < modifierGroup.minSelect) {
             ctx.addIssue({
               code: "custom",
-              message: `${modifierGroup.name}: Select at least ${modifierGroup.minSelect}`,
+              message: `Select at least ${modifierGroup.minSelect}`,
               path: [groupId],
             });
           }
@@ -28,7 +29,7 @@ function buildValidationSchema(menuItem: MenuItem) {
           ) {
             ctx.addIssue({
               code: "custom",
-              message: `${modifierGroup.name}: Select at most ${modifierGroup.maxSelect}`,
+              message: `Select at most ${modifierGroup.maxSelect}`,
               path: [groupId],
             });
           }
@@ -44,30 +45,73 @@ export type MenuItemSelection = {
   modifierSelections: Record<string, string[]>;
 };
 
+export type CartItemEditData = {
+  skuId: string;
+  quantity: number;
+  modifierSelections: Record<string, string[]>;
+};
+
 export function useMenuItemForm(
   menuItem: MenuItem,
   menuEntryId: string,
   onSuccess?: () => void,
+  editData?: CartItemEditData,
 ) {
   const validationSchema = buildValidationSchema(menuItem);
+  const isEditMode = !!editData;
 
-  const { addCartItem } = useCart();
+  const { addCartItem, replaceCartItem } = useCart();
+  const [modifierErrors, setModifierErrors] = useState<Record<string, string>>(
+    {},
+  );
+
+  const clearModifierErrors = () => setModifierErrors({});
 
   const form = useForm({
     defaultValues: {
-      quantity: 1,
-      modifierSelections: Object.fromEntries(
-        menuItem.modifierGroups.map(({ modifierGroup }) => [
-          modifierGroup.id,
-          [],
-        ]),
-      ) as Record<string, string[]>,
+      quantity: editData?.quantity ?? 1,
+      modifierSelections:
+        editData?.modifierSelections ??
+        (Object.fromEntries(
+          menuItem.modifierGroups.map(({ modifierGroup }) => [
+            modifierGroup.id,
+            [],
+          ]),
+        ) as Record<string, string[]>),
     } as Omit<MenuItemSelection, "itemId" | "menuEntryId">,
     validators: {
       onSubmit: validationSchema,
     },
+    onSubmitInvalid: ({ formApi }) => {
+      const errors: Record<string, string> = {};
+      // formApi.state.errors is an array of objects keyed by field path
+      for (const errorObj of formApi.state.errors) {
+        if (typeof errorObj === "object" && errorObj !== null) {
+          for (const [fieldPath, fieldErrors] of Object.entries(errorObj)) {
+            // fieldPath is like "modifierSelections.{groupId}"
+            if (fieldPath.startsWith("modifierSelections.")) {
+              const groupId = fieldPath.replace("modifierSelections.", "");
+              if (!errors[groupId] && Array.isArray(fieldErrors)) {
+                const firstError = fieldErrors[0];
+                if (firstError && typeof firstError === "object" && "message" in firstError) {
+                  errors[groupId] = String(firstError.message);
+                }
+              }
+            }
+          }
+        }
+      }
+      setModifierErrors(errors);
+    },
     onSubmit({ value }) {
-      addCartItem({ ...value, itemId: menuItem.id, menuEntryId });
+      setModifierErrors({});
+      const selection = { ...value, itemId: menuItem.id, menuEntryId };
+
+      if (isEditMode) {
+        replaceCartItem(editData.skuId, selection);
+      } else {
+        addCartItem(selection);
+      }
       onSuccess?.();
     },
   });
@@ -107,6 +151,9 @@ export function useMenuItemForm(
     form,
     getFormOutput,
     calculateTotalPrice,
+    isEditMode,
+    modifierErrors,
+    clearModifierErrors,
   };
 }
 

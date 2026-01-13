@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { BaggingView } from "@/components/orders/bagging-view";
 
-export const Route = createFileRoute("/dashboard/orders/bagging")({
+export const Route = createFileRoute("/dashboard/bagging")({
   component: BaggingPage,
 });
 

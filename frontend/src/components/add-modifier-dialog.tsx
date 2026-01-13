@@ -9,6 +9,7 @@ import {
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
+import { CentsInput } from "./ui/cents-input";
 import { Plus, Minus, Trash2 } from "lucide-react";
 import {
   useAddModifierForm,
@@ -66,33 +67,6 @@ export function AddModifierDialog({
   );
 }
 
-function formatCents(value: number) {
-  return `$${((value ?? 0) / 100).toFixed(2)}`;
-}
-
-function handleCentsKeyDownMagnitude(
-  e: React.KeyboardEvent<HTMLInputElement>,
-  currentMagnitude: number,
-  onChangeMagnitude: (nextMagnitude: number) => void,
-) {
-  const key = e.key;
-
-  if (/^\d$/.test(key)) {
-    e.preventDefault();
-    const digit = Number(key);
-    const nextMag = currentMagnitude * 10 + digit;
-    onChangeMagnitude(nextMag);
-    return;
-  }
-
-  if (key === "Backspace") {
-    e.preventDefault();
-    onChangeMagnitude(Math.trunc(currentMagnitude / 10));
-    return;
-  }
-  // Let Tab/Arrows/etc. pass through
-}
-
 type Option = { name: string; priceDelta: number };
 
 // No hooks here: all state lives in the form.
@@ -101,10 +75,12 @@ function OptionRow({
   opt,
   onChange,
   onRemove,
+  onInteract,
 }: {
   opt: Option;
   onChange: (next: Option) => void;
   onRemove: () => void;
+  onInteract?: () => void;
 }) {
   const magnitude = Math.abs(opt.priceDelta ?? 0);
   const isDecrease =
@@ -116,6 +92,7 @@ function OptionRow({
   };
 
   const setSign = (decrease: boolean) => {
+    onInteract?.();
     if (decrease) {
       onChange({
         ...opt,
@@ -135,7 +112,10 @@ function OptionRow({
         <Label>Name</Label>
         <Input
           value={opt.name}
-          onChange={(e) => onChange({ ...opt, name: e.target.value })}
+          onChange={(e) => {
+            onInteract?.();
+            onChange({ ...opt, name: e.target.value });
+          }}
         />
       </div>
 
@@ -164,13 +144,10 @@ function OptionRow({
               <Minus className="h-4 w-4" />
             </Button>
           </div>
-          <Input
-            className="text-right"
-            value={formatCents(magnitude)}
-            onKeyDown={(e) =>
-              handleCentsKeyDownMagnitude(e, magnitude, setMagnitude)
-            }
-            readOnly
+          <CentsInput
+            value={magnitude}
+            onChange={setMagnitude}
+            onInteract={onInteract}
           />
         </div>
       </div>
@@ -195,6 +172,8 @@ function AddModifierDialogContent({
   form,
   createModifierGroupMutation,
   isEditMode,
+  fieldErrors,
+  clearFieldErrors,
 }: ReturnType<typeof useAddModifierForm>) {
   return (
     <DialogContent className="xl:max-w-[700px] sm:max-w-[425px]">
@@ -210,23 +189,29 @@ function AddModifierDialogContent({
       </DialogHeader>
 
       <div className="grid gap-2">
-        <div className="flex flex-row gap-2">
+        <div className="flex flex-row gap-2 items-start">
           <form.Field name="name">
             {({ handleChange, state: { value } }) => (
-              <div className="w-1/2 grid gap-3">
+              <div className="w-1/2 grid gap-2">
                 <Label htmlFor="modifier-name">Name</Label>
                 <Input
                   id="modifier-name"
                   value={value ?? ""}
-                  onChange={(e) => handleChange(e.target.value)}
+                  onChange={(e) => {
+                    clearFieldErrors();
+                    handleChange(e.target.value);
+                  }}
                 />
+                {fieldErrors.name && (
+                  <p className="text-sm text-red-500">{fieldErrors.name}</p>
+                )}
               </div>
             )}
           </form.Field>
 
           <form.Field name="minSelect">
             {({ handleChange, state }) => (
-              <div className="w-1/4 grid gap-3">
+              <div className="w-1/4 grid gap-2">
                 <Label htmlFor="min-select">Min Select</Label>
                 <Input
                   id="min-select"
@@ -240,6 +225,7 @@ function AddModifierDialogContent({
                         : ""
                   }
                   onChange={(e) => {
+                    clearFieldErrors();
                     const v = e.target.value;
                     if (v === "") {
                       // Temporarily allow empty while typing
@@ -252,13 +238,16 @@ function AddModifierDialogContent({
                     }
                   }}
                 />
+                {fieldErrors.minSelect && (
+                  <p className="text-sm text-red-500">{fieldErrors.minSelect}</p>
+                )}
               </div>
             )}
           </form.Field>
 
           <form.Field name="maxSelect">
             {({ handleChange, state }) => (
-              <div className="w-1/4 grid gap-3">
+              <div className="w-1/4 grid gap-2">
                 <Label htmlFor="max-select">Max Select</Label>
                 <Input
                   id="max-select"
@@ -270,6 +259,7 @@ function AddModifierDialogContent({
                         : ""
                   }
                   onChange={(e) => {
+                    clearFieldErrors();
                     const v = e.target.value;
                     if (v === "") {
                       handleChange(null);
@@ -281,6 +271,9 @@ function AddModifierDialogContent({
                     }
                   }}
                 />
+                {fieldErrors.maxSelect && (
+                  <p className="text-sm text-red-500">{fieldErrors.maxSelect}</p>
+                )}
               </div>
             )}
           </form.Field>
@@ -344,8 +337,20 @@ function AddModifierDialogContent({
                     opt={opt}
                     onChange={(next) => updateAt(i, next)}
                     onRemove={() => removeAt(i)}
+                    onInteract={clearFieldErrors}
                   />
                 ))}
+                {(() => {
+                  const optionError = Object.entries(fieldErrors).find(
+                    ([key]) => key.startsWith("newModifierOptionsData"),
+                  );
+                  if (optionError) {
+                    return (
+                      <p className="text-sm text-red-500">{optionError[1]}</p>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
             );
           }}

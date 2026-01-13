@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/trpc";
 import { toast } from "sonner";
 import z from "zod";
+import { useState } from "react";
 
 export type ModifierGroupResult = {
   id: string;
@@ -96,6 +97,9 @@ export function useAddModifierForm({
     }),
   );
 
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const clearFieldErrors = () => setFieldErrors({});
+
   const form = useForm({
     defaultValues: {
       name: editData?.name ?? (null! as string),
@@ -108,18 +112,35 @@ export function useAddModifierForm({
     },
     validators: {
       onSubmit: z.object({
-        name: z.string().min(1),
-        minSelect: z.int().nonnegative(),
-        maxSelect: z.int().positive().nullable(),
+        name: z.string({ error: "Name cannot be empty" }).min(1, "Name is required"),
+        minSelect: z.int({ error: "Min select cannot be empty" }).nonnegative("Min select must be 0 or greater"),
+        maxSelect: z.int().positive("Max select must be positive").nullable(),
         newModifierOptionsData: z
           .object({
-            name: z.string().min(1),
+            name: z.string().min(1, "Option name is required"),
             priceDelta: z.int(),
           })
           .array(),
       }),
     },
+    onSubmitInvalid: ({ formApi }) => {
+      const errors: Record<string, string> = {};
+      for (const errorObj of formApi.state.errors) {
+        if (typeof errorObj === "object" && errorObj !== null) {
+          for (const [fieldPath, fieldErrs] of Object.entries(errorObj)) {
+            if (!errors[fieldPath] && Array.isArray(fieldErrs)) {
+              const firstError = fieldErrs[0];
+              if (firstError && typeof firstError === "object" && "message" in firstError) {
+                errors[fieldPath] = String(firstError.message);
+              }
+            }
+          }
+        }
+      }
+      setFieldErrors(errors);
+    },
     onSubmit: async ({ value, formApi }) => {
+      setFieldErrors({});
       if (isEditMode) {
         await updateModifierGroupMutation.mutateAsync({
           id: editData.id,
@@ -136,6 +157,13 @@ export function useAddModifierForm({
     ? updateModifierGroupMutation
     : createModifierGroupMutation;
 
-  return { form, createModifierGroupMutation: mutation, deleteModifierGroupMutation, isEditMode };
+  return {
+    form,
+    createModifierGroupMutation: mutation,
+    deleteModifierGroupMutation,
+    isEditMode,
+    fieldErrors,
+    clearFieldErrors,
+  };
 }
 

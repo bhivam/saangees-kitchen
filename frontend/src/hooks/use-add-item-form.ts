@@ -2,12 +2,13 @@ import { useForm } from "@tanstack/react-form";
 import { useTRPC } from "@/trpc";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import z from "zod";
+import { useState } from "react";
 import { toast } from "sonner";
 
 const itemSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  basePrice: z.number().int().positive("Price must be greater than 0"),
-  description: z.string().min(1, "Description is required"),
+  name: z.string({ error: "Name cannot be empty" }).min(1, "Name is required"),
+  basePrice: z.number({ error: "Price cannot be empty" }).int().positive("Price must be greater than 0"),
+  description: z.string({ error: "Description cannot be empty" }).min(1, "Description is required"),
   selectedModifierGroups: z.array(
     z.object({
       groupId: z.string(),
@@ -117,6 +118,9 @@ export function useAddItemForm({
     }),
   );
 
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const clearFieldErrors = () => setFieldErrors({});
+
   const form = useForm({
     defaultValues: {
       name: editData?.name ?? "",
@@ -136,16 +140,28 @@ export function useAddItemForm({
           maxSelect: number | null;
         }>),
     },
-    onSubmit: async ({ value, formApi }) => {
-      // Validate with Zod
-      const result = itemSchema.safeParse(value);
-      if (!result.success) {
-        const messages = result.error.issues.map((issue) => issue.message);
-        toast.error(messages.join(". "), { position: "bottom-center" });
-        return;
+    validators: {
+      onSubmit: itemSchema,
+    },
+    onSubmitInvalid: ({ formApi }) => {
+      const errors: Record<string, string> = {};
+      for (const errorObj of formApi.state.errors) {
+        if (typeof errorObj === "object" && errorObj !== null) {
+          for (const [fieldPath, fieldErrors] of Object.entries(errorObj)) {
+            if (!errors[fieldPath] && Array.isArray(fieldErrors)) {
+              const firstError = fieldErrors[0];
+              if (firstError && typeof firstError === "object" && "message" in firstError) {
+                errors[fieldPath] = String(firstError.message);
+              }
+            }
+          }
+        }
       }
-
-      const { selectedModifierGroups, ...itemData } = result.data;
+      setFieldErrors(errors);
+    },
+    onSubmit: async ({ value, formApi }) => {
+      setFieldErrors({});
+      const { selectedModifierGroups, ...itemData } = value;
       const modifierGroups = selectedModifierGroups.map((mg, index) => ({
         groupId: mg.groupId,
         sortOrder: index,
@@ -170,6 +186,13 @@ export function useAddItemForm({
 
   const mutation = isEditMode ? updateMenuItemMutation : createMenuItemMutation;
 
-  return { form, createMenuItemMutation: mutation, deleteMenuItemMutation, isEditMode };
+  return {
+    form,
+    createMenuItemMutation: mutation,
+    deleteMenuItemMutation,
+    isEditMode,
+    fieldErrors,
+    clearFieldErrors,
+  };
 }
 

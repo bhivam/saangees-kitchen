@@ -12,6 +12,7 @@ import { Label } from "./ui/label";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Button } from "./ui/button";
+import { CentsInput } from "./ui/cents-input";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import {
@@ -69,6 +70,8 @@ function AddItemDialogContent({
   form,
   createMenuItemMutation,
   isEditMode,
+  fieldErrors,
+  clearFieldErrors,
 }: ReturnType<typeof useAddItemForm>) {
   const [createModifierOpen, setCreateModifierOpen] = useState(false);
 
@@ -86,54 +89,54 @@ function AddItemDialogContent({
       </DialogHeader>
 
       <div className="grid gap-2">
-        <div className="flex flex-row gap-2">
+        <div className="flex flex-row gap-2 items-start">
           <form.Field name="name">
             {({ handleChange, state: { value } }) => (
-              <div className="w-3/4 grid gap-3">
+              <div className="w-3/4 grid gap-2">
                 <Label htmlFor="name-1">Name</Label>
                 <Input
                   value={value}
-                  onChange={(e) => handleChange(e.target.value)}
+                  onChange={(e) => {
+                    clearFieldErrors();
+                    handleChange(e.target.value);
+                  }}
                 />
+                {fieldErrors.name && (
+                  <p className="text-sm text-red-500">{fieldErrors.name}</p>
+                )}
               </div>
             )}
           </form.Field>
           <form.Field name="basePrice">
             {({ handleChange, state: { value } }) => (
-              <div className="w-1/4 grid gap-3">
+              <div className="w-1/4 grid gap-2">
                 <Label htmlFor="name-1">Base Price</Label>
-                <Input
-                  className="text-right"
-                  value={`$${((value ?? 0) / 100).toFixed(2)}`}
-                  onKeyDown={(e) => {
-                    if (e.key === "Backspace") {
-                      e.preventDefault();
-                      handleChange((value) => Math.trunc(value / 10));
-                    }
-
-                    const parsedValue = parseInt(e.key);
-
-                    if (Number.isNaN(parsedValue)) return;
-
-                    handleChange((value) => {
-                      const newValue = value * 10 + parsedValue;
-
-                      return newValue;
-                    });
-                  }}
+                <CentsInput
+                  value={value ?? 0}
+                  onChange={handleChange}
+                  onInteract={clearFieldErrors}
                 />
+                {fieldErrors.basePrice && (
+                  <p className="text-sm text-red-500">{fieldErrors.basePrice}</p>
+                )}
               </div>
             )}
           </form.Field>
         </div>
         <form.Field name="description">
           {({ handleChange, state: { value } }) => (
-            <div className="grid gap-3">
+            <div className="grid gap-2">
               <Label htmlFor="name-1">Description</Label>
               <Textarea
                 value={value}
-                onChange={(e) => handleChange(e.target.value)}
+                onChange={(e) => {
+                  clearFieldErrors();
+                  handleChange(e.target.value);
+                }}
               />
+              {fieldErrors.description && (
+                <p className="text-sm text-red-500">{fieldErrors.description}</p>
+              )}
             </div>
           )}
         </form.Field>

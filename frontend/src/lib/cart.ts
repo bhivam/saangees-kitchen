@@ -62,7 +62,7 @@ export type Cart = z.infer<typeof cartSchema>;
 
 const CART_KEY = "cart";
 
-function getCartItemId(itemSelection: MenuItemSelection) {
+export function getCartItemId(itemSelection: MenuItemSelection) {
   const groups = Object.entries(itemSelection.modifierSelections)
     .map(([groupId, optionIds]) => {
       const opts = Array.from(new Set((optionIds ?? []).filter(Boolean))).sort(
@@ -135,5 +135,45 @@ export function getCartLS(): Cart {
 
 export function setCartLS(cart: Cart) {
   localStorage.setItem(CART_KEY, JSON.stringify(cart));
+}
+
+export function updateCartItemQuantityLS(skuId: string, quantity: number) {
+  const currentCart = getCartLS();
+
+  if (quantity <= 0) {
+    delete currentCart.items[skuId];
+  } else {
+    currentCart.items[skuId] = { quantity };
+  }
+
+  localStorage.setItem(CART_KEY, JSON.stringify(currentCart));
+}
+
+export function removeCartItemBySkuLS(skuId: string) {
+  const currentCart = getCartLS();
+  delete currentCart.items[skuId];
+  localStorage.setItem(CART_KEY, JSON.stringify(currentCart));
+}
+
+export function replaceCartItemLS(
+  oldSkuId: string,
+  itemSelection: MenuItemSelection,
+) {
+  const currentCart = getCartLS();
+  const newSkuId = getCartItemId(itemSelection);
+
+  if (oldSkuId === newSkuId) {
+    // Same SKU, just update quantity
+    currentCart.items[newSkuId] = { quantity: itemSelection.quantity };
+  } else {
+    // Different SKU - remove old, add new (merging if exists)
+    delete currentCart.items[oldSkuId];
+    const existingQuantity = currentCart.items[newSkuId]?.quantity ?? 0;
+    currentCart.items[newSkuId] = {
+      quantity: existingQuantity + itemSelection.quantity,
+    };
+  }
+
+  localStorage.setItem(CART_KEY, JSON.stringify(currentCart));
 }
 

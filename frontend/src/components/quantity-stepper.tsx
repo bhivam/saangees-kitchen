@@ -1,5 +1,6 @@
 import { Minus, Plus } from "lucide-react";
 import { Button } from "./ui/button";
+import type { ReactNode } from "react";
 
 export function QuantityStepper({
   value,
@@ -7,12 +8,14 @@ export function QuantityStepper({
   onIncrease,
   reduceDisabled,
   increaseDisabled,
+  reduceIcon,
 }: {
   value: number;
   onReduce: () => void;
   onIncrease: () => void;
   reduceDisabled: boolean;
   increaseDisabled: boolean;
+  reduceIcon?: ReactNode;
 }) {
   return (
     <div className="flex items-center gap-2 border rounded-md">
@@ -23,7 +26,7 @@ export function QuantityStepper({
         onClick={onReduce}
         disabled={reduceDisabled}
       >
-        <Minus className="size-4" />
+        {reduceIcon ?? <Minus className="size-4" />}
       </Button>
       <span className="w-8 text-center font-medium">{value}</span>
       <Button

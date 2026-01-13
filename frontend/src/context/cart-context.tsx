@@ -1,11 +1,22 @@
 import type { MenuItemSelection } from "@/hooks/use-menu-item-form";
-import { addCartItemLS, getCartLS, setCartLS, type Cart } from "@/lib/cart";
+import {
+  addCartItemLS,
+  getCartLS,
+  removeCartItemBySkuLS,
+  replaceCartItemLS,
+  setCartLS,
+  updateCartItemQuantityLS,
+  type Cart,
+} from "@/lib/cart";
 import { createContext, useCallback, useState, type ReactNode } from "react";
 
 export const CartContext = createContext<{
   cart: Cart;
   addCartItem: (itemSelection: MenuItemSelection) => void;
   setCart: (cart: Cart) => void;
+  updateCartItemQuantity: (skuId: string, quantity: number) => void;
+  removeCartItem: (skuId: string) => void;
+  replaceCartItem: (oldSkuId: string, newSelection: MenuItemSelection) => void;
 } | null>(null);
 
 export function CartProvider({ children }: { children: ReactNode }) {
@@ -29,8 +40,41 @@ export function CartProvider({ children }: { children: ReactNode }) {
     [setCartState],
   );
 
+  const updateCartItemQuantity = useCallback(
+    (skuId: string, quantity: number) => {
+      updateCartItemQuantityLS(skuId, quantity);
+      setCartState(getCartLS());
+    },
+    [setCartState],
+  );
+
+  const removeCartItem = useCallback(
+    (skuId: string) => {
+      removeCartItemBySkuLS(skuId);
+      setCartState(getCartLS());
+    },
+    [setCartState],
+  );
+
+  const replaceCartItem = useCallback(
+    (oldSkuId: string, newSelection: MenuItemSelection) => {
+      replaceCartItemLS(oldSkuId, newSelection);
+      setCartState(getCartLS());
+    },
+    [setCartState],
+  );
+
   return (
-    <CartContext.Provider value={{ cart, addCartItem, setCart }}>
+    <CartContext.Provider
+      value={{
+        cart,
+        addCartItem,
+        setCart,
+        updateCartItemQuantity,
+        removeCartItem,
+        replaceCartItem,
+      }}
+    >
       {children}
     </CartContext.Provider>
   );

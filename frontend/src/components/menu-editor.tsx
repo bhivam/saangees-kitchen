@@ -1,35 +1,29 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "./ui/button";
 import { AddItemDialog } from "./add-item-dialog";
-import { ArrowUp, ArrowDown, Save, X, Plus, Loader2 } from "lucide-react";
-import { useTRPC } from "@/trpc";
+import { ArrowUp, ArrowDown, X, Plus } from "lucide-react";
+import { useTRPC, useTRPCClient, type RouterOutputs } from "@/trpc";
 import { toast } from "sonner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DayPicker } from "react-day-picker";
 import { Skeleton } from "./ui/skeleton";
+import { cn } from "@/lib/utils";
 import "react-day-picker/style.css";
 
-type MenuItem = {
-  id: string;
-  name: string;
-  description: string;
-  basePrice: number;
-};
+type MenuEntry = RouterOutputs["menu"]["getByDate"][number];
+type MenuItem = MenuEntry["menuItem"];
 
-function moveItem<T>(arr: T[], from: number, to: number) {
-  const result = arr.slice();
-  const [item] = result.splice(from, 1);
-  result.splice(to, 0, item);
-  return result;
+function isOptimisticEntry(id: string) {
+  return id.startsWith("optim-");
 }
 
 export function MenuEditor() {
   const trpc = useTRPC();
+  const trpcClient = useTRPCClient();
   const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
     new Date(),
   );
-  const [selectedItems, setSelectedItems] = useState<MenuItem[]>([]);
 
   const dateString = selectedDate
     ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`
@@ -43,114 +37,196 @@ export function MenuEditor() {
     { date: dateString },
     {
       enabled: !!dateString,
-      placeholderData: (prev) => prev,
     },
   );
 
-  const {
-    data: existingMenu,
-    isPending,
-    isFetching,
-  } = useQuery(menuQueryOptions);
+  const { data: existingMenu, isPending: menuPending } =
+    useQuery(menuQueryOptions);
 
-  // Single save mutation - backend handles both create and update identically
-  const saveMenu = useMutation(
-    trpc.menu.save.mutationOptions({
-      onSettled: (data, error) => {
-        if (error) {
-          toast.error("Failed to save menu", {
-            description: error.message,
-          });
-          return;
-        }
-        if (data) {
-          // Update the cache with the response from the server
-          // This ensures the UI reflects exactly what's in the database
-          queryClient.setQueryData(menuQueryOptions.queryKey, data.entries);
+  // Derive menu entries and available items from query cache
+  const menuEntries = existingMenu ?? [];
+  const selectedItemIds = new Set(menuEntries.map((e) => e.menuItem.id));
+  const unselectedItems =
+    allItems?.filter((item) => !selectedItemIds.has(item.id)) ?? [];
 
-          // Also update local state to match server response
-          setSelectedItems(data.entries.map((entry) => entry.menuItem));
+  // Add item mutation with optimistic update
+  const addItemMutation = useMutation({
+    mutationFn: async (itemId: string) => {
+      const currentEntries =
+        queryClient.getQueryData<MenuEntry[]>(menuQueryOptions.queryKey) ?? [];
+      const currentIds = currentEntries
+        .filter((e) => !isOptimisticEntry(e.id))
+        .map((e) => e.menuItem.id);
+      return trpcClient.menu.save.mutate({
+        date: dateString,
+        items: [...currentIds, itemId],
+      });
+    },
+    onMutate: async (itemId) => {
+      await queryClient.cancelQueries({ queryKey: menuQueryOptions.queryKey });
+      const previous = queryClient.getQueryData<MenuEntry[]>(
+        menuQueryOptions.queryKey,
+      );
 
-          toast.success("Menu saved", {
-            description: `Menu for ${data.date} saved successfully`,
-          });
-        }
-      },
-    }),
-  );
+      const itemToAdd = allItems?.find((i) => i.id === itemId);
+      if (!itemToAdd) return { previous };
 
-  // Load existing menu when date changes or menu data is fetched
-  // Only update when we have fresh data (not stale placeholder data)
-  useEffect(() => {
-    if (isFetching) return;
-    if (existingMenu && existingMenu.length > 0) {
-      const items = existingMenu.map((entry) => entry.menuItem);
-      setSelectedItems(items);
-    } else {
-      setSelectedItems([]);
-    }
-  }, [existingMenu, isFetching]);
+      const currentEntries = previous ?? [];
+      const optimisticEntry: MenuEntry = {
+        id: `optim-${crypto.randomUUID()}`,
+        date: dateString,
+        sortOrder: currentEntries.length,
+        menuItem: itemToAdd,
+      };
 
-  const handleSave = () => {
+      queryClient.setQueryData(menuQueryOptions.queryKey, [
+        ...currentEntries,
+        optimisticEntry,
+      ]);
+      return { previous };
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(menuQueryOptions.queryKey, data.entries);
+    },
+    onError: (err, _, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(menuQueryOptions.queryKey, context.previous);
+      }
+      toast.error("Failed to add item", { description: err.message });
+    },
+  });
+
+  // Remove item mutation with optimistic update
+  const removeItemMutation = useMutation({
+    mutationFn: async (entryId: string) => {
+      const currentEntries =
+        queryClient.getQueryData<MenuEntry[]>(menuQueryOptions.queryKey) ?? [];
+      const remainingIds = currentEntries
+        .filter((e) => e.id !== entryId && !isOptimisticEntry(e.id))
+        .map((e) => e.menuItem.id);
+      return trpcClient.menu.save.mutate({
+        date: dateString,
+        items: remainingIds,
+      });
+    },
+    onMutate: async (entryId) => {
+      await queryClient.cancelQueries({ queryKey: menuQueryOptions.queryKey });
+      const previous = queryClient.getQueryData<MenuEntry[]>(
+        menuQueryOptions.queryKey,
+      );
+
+      const filtered = (previous ?? []).filter((e) => e.id !== entryId);
+      queryClient.setQueryData(menuQueryOptions.queryKey, filtered);
+      return { previous };
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(menuQueryOptions.queryKey, data.entries);
+    },
+    onError: (err, _, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(menuQueryOptions.queryKey, context.previous);
+      }
+      toast.error("Failed to remove item", { description: err.message });
+    },
+  });
+
+  // Reorder mutation with optimistic update
+  const reorderMutation = useMutation({
+    mutationFn: async ({
+      entryId,
+      direction,
+    }: {
+      entryId: string;
+      direction: "up" | "down";
+    }) => {
+      const currentEntries =
+        queryClient.getQueryData<MenuEntry[]>(menuQueryOptions.queryKey) ?? [];
+      const index = currentEntries.findIndex((e) => e.id === entryId);
+      const newIndex = direction === "up" ? index - 1 : index + 1;
+
+      const reordered = [...currentEntries];
+      const [item] = reordered.splice(index, 1);
+      reordered.splice(newIndex, 0, item);
+
+      return trpcClient.menu.save.mutate({
+        date: dateString,
+        items: reordered
+          .filter((e) => !isOptimisticEntry(e.id))
+          .map((e) => e.menuItem.id),
+      });
+    },
+    onMutate: async ({ entryId, direction }) => {
+      await queryClient.cancelQueries({ queryKey: menuQueryOptions.queryKey });
+      const previous = queryClient.getQueryData<MenuEntry[]>(
+        menuQueryOptions.queryKey,
+      );
+
+      const currentEntries = previous ?? [];
+      const index = currentEntries.findIndex((e) => e.id === entryId);
+      const newIndex = direction === "up" ? index - 1 : index + 1;
+
+      const reordered = [...currentEntries];
+      const [item] = reordered.splice(index, 1);
+      reordered.splice(newIndex, 0, item);
+
+      // Update sortOrder for display
+      const withUpdatedOrder = reordered.map((e, i) => ({
+        ...e,
+        sortOrder: i,
+      }));
+
+      queryClient.setQueryData(menuQueryOptions.queryKey, withUpdatedOrder);
+      return { previous };
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(menuQueryOptions.queryKey, data.entries);
+    },
+    onError: (err, _, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(menuQueryOptions.queryKey, context.previous);
+      }
+      toast.error("Failed to reorder items", { description: err.message });
+    },
+  });
+
+  // Check if any mutation is in flight
+  const isMutating =
+    addItemMutation.isPending ||
+    removeItemMutation.isPending ||
+    reorderMutation.isPending;
+
+  const handleAddItem = (item: MenuItem) => {
     if (!dateString) {
       toast.error("Please select a date");
       return;
     }
-
-    // Deduplicate items before sending to backend
-    const uniqueItemIds = [...new Set(selectedItems.map((item) => item.id))];
-    saveMenu.mutate({ date: dateString, items: uniqueItemIds });
+    addItemMutation.mutate(item.id);
   };
 
-  const handleAddItem = (item: MenuItem) => {
-    setSelectedItems((prev) => [...prev, item]);
+  const handleRemoveItem = (entryId: string) => {
+    removeItemMutation.mutate(entryId);
   };
 
-  const handleRemoveItem = (itemId: string) => {
-    setSelectedItems((prev) => prev.filter((item) => item.id !== itemId));
-  };
-
-  const handleMoveUp = (index: number) => {
+  const handleMoveUp = (entryId: string, index: number) => {
     if (index > 0) {
-      setSelectedItems((prev) => moveItem(prev, index, index - 1));
+      reorderMutation.mutate({ entryId, direction: "up" });
     }
   };
 
-  const handleMoveDown = (index: number) => {
-    if (index < selectedItems.length - 1) {
-      setSelectedItems((prev) => moveItem(prev, index, index + 1));
+  const handleMoveDown = (entryId: string, index: number) => {
+    if (index < menuEntries.length - 1) {
+      reorderMutation.mutate({ entryId, direction: "down" });
     }
   };
 
-  const unselectedItems =
-    allItems?.filter(
-      (item) => !selectedItems.some((selected) => selected.id === item.id),
-    ) || [];
-
-  const isSaving = saveMenu.isPending;
-  const isLoading = allItemsPending || isPending;
-
-  console.log(isLoading ? "loading" : "not loading");
+  const isLoading = allItemsPending || menuPending;
 
   return (
     <div className="flex h-full w-full">
       <div className="flex-1 border-r p-6 overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold">Daily Menu</h2>
-          <div className="flex gap-2">
-            <AddItemDialog />
-            <Button
-              onClick={handleSave}
-              disabled={!dateString || isSaving || isLoading}
-            >
-              {isSaving ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="mr-2 h-4 w-4" />
-              )}
-              {isSaving ? "Saving..." : "Save Menu"}
-            </Button>
-          </div>
+          <AddItemDialog />
         </div>
 
         {isLoading ? (
@@ -164,21 +240,13 @@ export function MenuEditor() {
                 {[1, 2, 3].map((i) => (
                   <div
                     key={i}
-                    className="flex items-start gap-4 p-4 rounded-lg border border-primary/50 bg-primary/5"
+                    className="flex items-center gap-4 p-4 rounded-lg border bg-muted/30"
                   >
-                    <Skeleton className="w-8 h-8 rounded-full shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-baseline gap-2">
-                        <Skeleton className="h-5 w-32" />
-                        <Skeleton className="h-4 w-14" />
-                      </div>
+                      <Skeleton className="h-5 w-40" />
                       <Skeleton className="h-4 w-full mt-2" />
                     </div>
-                    <div className="flex flex-col gap-1 shrink-0">
-                      <Skeleton className="h-7 w-7" />
-                      <Skeleton className="h-7 w-7" />
-                    </div>
-                    <Skeleton className="h-8 w-8 shrink-0" />
+                    <Skeleton className="h-8 w-20 shrink-0" />
                   </div>
                 ))}
               </div>
@@ -192,13 +260,10 @@ export function MenuEditor() {
                 {[1, 2].map((i) => (
                   <div
                     key={i}
-                    className="flex items-start gap-4 p-4 rounded-lg border bg-background"
+                    className="flex items-center gap-4 p-4 rounded-lg border bg-muted/30"
                   >
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-baseline gap-2">
-                        <Skeleton className="h-5 w-28" />
-                        <Skeleton className="h-4 w-14" />
-                      </div>
+                      <Skeleton className="h-5 w-32" />
                       <Skeleton className="h-4 w-3/4 mt-2" />
                     </div>
                     <Skeleton className="h-8 w-16 shrink-0" />
@@ -215,7 +280,7 @@ export function MenuEditor() {
                 Today's Menu
               </h3>
 
-              {selectedItems.length === 0 ? (
+              {menuEntries.length === 0 ? (
                 <div className="border-2 border-dashed rounded-lg p-8 text-center">
                   <p className="text-muted-foreground">
                     No items selected for this date.
@@ -226,64 +291,72 @@ export function MenuEditor() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {selectedItems.map((item, index) => (
-                    <div
-                      key={item.id}
-                      className="flex items-start gap-4 p-4 rounded-lg border border-primary/50 bg-primary/5"
-                    >
-                      {/* Order number */}
-                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-semibold text-sm shrink-0">
-                        {index + 1}
-                      </div>
-
-                      {/* Item info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-baseline gap-2">
-                          <h4 className="font-semibold truncate">
-                            {item.name}
-                          </h4>
-                          <span className="text-sm font-medium text-primary shrink-0">
-                            ${(item.basePrice / 100).toFixed(2)}
-                          </span>
-                        </div>
-                        <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-                          {item.description}
-                        </p>
-                      </div>
-
-                      {/* Reorder buttons */}
-                      <div className="flex flex-col gap-1 shrink-0">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => handleMoveUp(index)}
-                          disabled={index === 0}
-                        >
-                          <ArrowUp className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => handleMoveDown(index)}
-                          disabled={index === selectedItems.length - 1}
-                        >
-                          <ArrowDown className="h-4 w-4" />
-                        </Button>
-                      </div>
-
-                      {/* Remove button */}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
-                        onClick={() => handleRemoveItem(item.id)}
+                  {menuEntries.map((entry, index) => {
+                    const isOptimistic = isOptimisticEntry(entry.id);
+                    return (
+                      <div
+                        key={entry.id}
+                        className={cn(
+                          "flex items-start gap-4 p-4 rounded-lg border transition-opacity",
+                          isOptimistic
+                            ? "border-primary/30 bg-primary/5 opacity-60"
+                            : "border-primary/50 bg-primary/5",
+                        )}
                       >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
+                        {/* Item info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-baseline gap-2">
+                            <h4 className="font-semibold truncate">
+                              {entry.menuItem.name}
+                            </h4>
+                            <span className="text-sm font-medium text-primary shrink-0">
+                              ${(entry.menuItem.basePrice / 100).toFixed(2)}
+                            </span>
+                          </div>
+                          <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                            {entry.menuItem.description}
+                          </p>
+                        </div>
+
+                        {/* Reorder buttons */}
+                        <div className="flex flex-col gap-1 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => handleMoveUp(entry.id, index)}
+                            disabled={index === 0 || isMutating || isOptimistic}
+                          >
+                            <ArrowUp className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => handleMoveDown(entry.id, index)}
+                            disabled={
+                              index === menuEntries.length - 1 ||
+                              isMutating ||
+                              isOptimistic
+                            }
+                          >
+                            <ArrowDown className="h-4 w-4" />
+                          </Button>
+                        </div>
+
+                        {/* Remove button */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
+                          onClick={() => handleRemoveItem(entry.id)}
+                          disabled={isMutating || isOptimistic}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -293,11 +366,11 @@ export function MenuEditor() {
                 Available Items
               </h3>
 
-              {unselectedItems.length === 0 && selectedItems.length > 0 ? (
+              {unselectedItems.length === 0 && menuEntries.length > 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">
                   All items have been added to today's menu.
                 </p>
-              ) : unselectedItems.length === 0 && selectedItems.length === 0 ? (
+              ) : unselectedItems.length === 0 && menuEntries.length === 0 ? (
                 <div className="text-center text-muted-foreground py-8">
                   <p>No items available.</p>
                   <p className="text-sm mt-1">Create some items first.</p>
@@ -307,8 +380,13 @@ export function MenuEditor() {
                   {unselectedItems.map((item) => (
                     <div
                       key={item.id}
-                      className="flex items-start gap-4 p-4 rounded-lg border bg-background hover:bg-muted/50 cursor-pointer transition-colors"
-                      onClick={() => handleAddItem(item)}
+                      className={cn(
+                        "flex items-start gap-4 p-4 rounded-lg border bg-background transition-colors",
+                        isMutating
+                          ? "opacity-50 cursor-not-allowed"
+                          : "hover:bg-muted/50 cursor-pointer",
+                      )}
+                      onClick={() => !isMutating && handleAddItem(item)}
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-baseline gap-2">
@@ -321,7 +399,12 @@ export function MenuEditor() {
                           {item.description}
                         </p>
                       </div>
-                      <Button variant="outline" size="sm" className="shrink-0">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0"
+                        disabled={isMutating}
+                      >
                         <Plus className="h-4 w-4 mr-1" />
                         Add
                       </Button>
@@ -364,4 +447,3 @@ export function MenuEditor() {
     </div>
   );
 }
-

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardAction } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { CentsInput } from "@/components/ui/cents-input";
 import { Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCents } from "@/lib/utils";
@@ -13,7 +13,7 @@ export function PaymentView() {
   const queryClient = useQueryClient();
   const [showUnpaidOnly, setShowUnpaidOnly] = useState(false);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
-  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentCents, setPaymentCents] = useState(0);
 
   const paymentQuery = useQuery(trpc.orders.getPaymentView.queryOptions());
 
@@ -24,7 +24,7 @@ export function PaymentView() {
         queryKey: trpc.orders.getPaymentView.queryKey(),
       });
       setEditingOrderId(null);
-      setPaymentAmount("");
+      setPaymentCents(0);
     },
   });
 
@@ -38,16 +38,11 @@ export function PaymentView() {
   });
 
   const handleUpdatePayment = (orderId: string, total: number) => {
-    const cents = Math.round(parseFloat(paymentAmount) * 100);
-    if (isNaN(cents) || cents < 0) {
-      alert("Please enter a valid amount");
-      return;
-    }
-    if (cents > total) {
+    if (paymentCents > total) {
       alert(`Amount cannot exceed ${formatCents(total)}`);
       return;
     }
-    updatePaymentMutation.mutate({ orderId, centsPaid: cents });
+    updatePaymentMutation.mutate({ orderId, centsPaid: paymentCents });
   };
 
   const handleMarkPaidInFull = (orderId: string) => {
@@ -132,7 +127,7 @@ export function PaymentView() {
                     disabled={updatePaymentMutation.isPending}
                   >
                     <X className="h-4 w-4" />
-                    Clear
+                    Revert to Unpaid
                   </Button>
                 </CardAction>
               )}
@@ -165,19 +160,12 @@ export function PaymentView() {
                   <div className="ml-auto flex items-center gap-2">
                     {editingOrderId === order.orderId ? (
                       <>
-                        <div className="flex items-center gap-1">
-                          <span className="text-muted-foreground">$</span>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            max={order.total / 100}
-                            value={paymentAmount}
-                            onChange={(e) => setPaymentAmount(e.target.value)}
-                            placeholder="0.00"
-                            className="w-24"
-                          />
-                        </div>
+                        <CentsInput
+                          value={paymentCents}
+                          onChange={setPaymentCents}
+                          max={order.total}
+                          className="w-24"
+                        />
                         <Button
                           size="sm"
                           onClick={() => handleUpdatePayment(order.orderId, order.total)}
@@ -190,7 +178,7 @@ export function PaymentView() {
                           size="sm"
                           onClick={() => {
                             setEditingOrderId(null);
-                            setPaymentAmount("");
+                            setPaymentCents(0);
                           }}
                         >
                           Cancel
@@ -203,7 +191,7 @@ export function PaymentView() {
                           size="sm"
                           onClick={() => {
                             setEditingOrderId(order.orderId);
-                            setPaymentAmount((order.centsPaid / 100).toFixed(2));
+                            setPaymentCents(order.centsPaid);
                           }}
                         >
                           Enter Amount

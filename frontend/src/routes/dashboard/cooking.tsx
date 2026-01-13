@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CookingView } from "@/components/orders/cooking-view";
 
-export const Route = createFileRoute("/dashboard/orders/cooking")({
+export const Route = createFileRoute("/dashboard/cooking")({
   component: CookingPage,
 });
 
