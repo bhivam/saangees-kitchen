@@ -6,6 +6,7 @@ import { useTRPC } from "@/trpc";
 import { toast } from "sonner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DayPicker } from "react-day-picker";
+import { Skeleton } from "./ui/skeleton";
 import "react-day-picker/style.css";
 
 type MenuItem = {
@@ -34,7 +35,7 @@ export function MenuEditor() {
     ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`
     : "";
 
-  const { data: allItems } = useQuery(
+  const { data: allItems, isPending: allItemsPending } = useQuery(
     trpc.menuItems.getMenuItems.queryOptions(),
   );
 
@@ -46,7 +47,11 @@ export function MenuEditor() {
     },
   );
 
-  const { data: existingMenu, isPending, isFetching } = useQuery(menuQueryOptions);
+  const {
+    data: existingMenu,
+    isPending,
+    isFetching,
+  } = useQuery(menuQueryOptions);
 
   // Single save mutation - backend handles both create and update identically
   const saveMenu = useMutation(
@@ -123,21 +128,21 @@ export function MenuEditor() {
     ) || [];
 
   const isSaving = saveMenu.isPending;
+  const isLoading = allItemsPending || isPending;
+
+  console.log(isLoading ? "loading" : "not loading");
 
   return (
     <div className="flex h-full w-full">
-      <div className="flex-1 border-r p-6 overflow-y-auto relative">
-        {isPending && (
-          <div className="absolute inset-0 bg-background/60 flex items-center justify-center z-10">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-        )}
-
+      <div className="flex-1 border-r p-6 overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold">Daily Menu</h2>
           <div className="flex gap-2">
             <AddItemDialog />
-            <Button onClick={handleSave} disabled={!dateString || isSaving}>
+            <Button
+              onClick={handleSave}
+              disabled={!dateString || isSaving || isLoading}
+            >
               {isSaving ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
@@ -148,124 +153,185 @@ export function MenuEditor() {
           </div>
         </div>
 
-        <div className="mb-8">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-            Today's Menu
-          </h3>
-
-          {selectedItems.length === 0 ? (
-            <div className="border-2 border-dashed rounded-lg p-8 text-center">
-              <p className="text-muted-foreground">
-                No items selected for this date.
-              </p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Click items below to add them to the menu.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {selectedItems.map((item, index) => (
-                <div
-                  key={item.id}
-                  className="flex items-start gap-4 p-4 rounded-lg border border-primary/50 bg-primary/5"
-                >
-                  {/* Order number */}
-                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-semibold text-sm shrink-0">
-                    {index + 1}
-                  </div>
-
-                  {/* Item info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-2">
-                      <h4 className="font-semibold truncate">{item.name}</h4>
-                      <span className="text-sm font-medium text-primary shrink-0">
-                        ${(item.basePrice / 100).toFixed(2)}
-                      </span>
-                    </div>
-                    <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-                      {item.description}
-                    </p>
-                  </div>
-
-                  {/* Reorder buttons */}
-                  <div className="flex flex-col gap-1 shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => handleMoveUp(index)}
-                      disabled={index === 0}
-                    >
-                      <ArrowUp className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => handleMoveDown(index)}
-                      disabled={index === selectedItems.length - 1}
-                    >
-                      <ArrowDown className="h-4 w-4" />
-                    </Button>
-                  </div>
-
-                  {/* Remove button */}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
-                    onClick={() => handleRemoveItem(item.id)}
+        {isLoading ? (
+          // Skeleton loading state
+          <>
+            <div className="mb-8">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Today's Menu
+              </h3>
+              <div className="space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="flex items-start gap-4 p-4 rounded-lg border border-primary/50 bg-primary/5"
                   >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div>
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-            Available Items
-          </h3>
-
-          {unselectedItems.length === 0 && selectedItems.length > 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              All items have been added to today's menu.
-            </p>
-          ) : unselectedItems.length === 0 && selectedItems.length === 0 ? (
-            <div className="text-center text-muted-foreground py-8">
-              <p>No items available.</p>
-              <p className="text-sm mt-1">Create some items first.</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {unselectedItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-start gap-4 p-4 rounded-lg border bg-background hover:bg-muted/50 cursor-pointer transition-colors"
-                  onClick={() => handleAddItem(item)}
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-2">
-                      <h4 className="font-medium truncate">{item.name}</h4>
-                      <span className="text-sm text-muted-foreground shrink-0">
-                        ${(item.basePrice / 100).toFixed(2)}
-                      </span>
+                    <Skeleton className="w-8 h-8 rounded-full shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline gap-2">
+                        <Skeleton className="h-5 w-32" />
+                        <Skeleton className="h-4 w-14" />
+                      </div>
+                      <Skeleton className="h-4 w-full mt-2" />
                     </div>
-                    <p className="text-sm text-muted-foreground line-clamp-1 mt-1">
-                      {item.description}
-                    </p>
+                    <div className="flex flex-col gap-1 shrink-0">
+                      <Skeleton className="h-7 w-7" />
+                      <Skeleton className="h-7 w-7" />
+                    </div>
+                    <Skeleton className="h-8 w-8 shrink-0" />
                   </div>
-                  <Button variant="outline" size="sm" className="shrink-0">
-                    <Plus className="h-4 w-4 mr-1" />
-                    Add
-                  </Button>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          )}
-        </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Available Items
+              </h3>
+              <div className="space-y-2">
+                {[1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="flex items-start gap-4 p-4 rounded-lg border bg-background"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline gap-2">
+                        <Skeleton className="h-5 w-28" />
+                        <Skeleton className="h-4 w-14" />
+                      </div>
+                      <Skeleton className="h-4 w-3/4 mt-2" />
+                    </div>
+                    <Skeleton className="h-8 w-16 shrink-0" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        ) : (
+          // Loaded content
+          <>
+            <div className="mb-8">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Today's Menu
+              </h3>
+
+              {selectedItems.length === 0 ? (
+                <div className="border-2 border-dashed rounded-lg p-8 text-center">
+                  <p className="text-muted-foreground">
+                    No items selected for this date.
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Click items below to add them to the menu.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {selectedItems.map((item, index) => (
+                    <div
+                      key={item.id}
+                      className="flex items-start gap-4 p-4 rounded-lg border border-primary/50 bg-primary/5"
+                    >
+                      {/* Order number */}
+                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-semibold text-sm shrink-0">
+                        {index + 1}
+                      </div>
+
+                      {/* Item info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-2">
+                          <h4 className="font-semibold truncate">
+                            {item.name}
+                          </h4>
+                          <span className="text-sm font-medium text-primary shrink-0">
+                            ${(item.basePrice / 100).toFixed(2)}
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                          {item.description}
+                        </p>
+                      </div>
+
+                      {/* Reorder buttons */}
+                      <div className="flex flex-col gap-1 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => handleMoveUp(index)}
+                          disabled={index === 0}
+                        >
+                          <ArrowUp className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => handleMoveDown(index)}
+                          disabled={index === selectedItems.length - 1}
+                        >
+                          <ArrowDown className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      {/* Remove button */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
+                        onClick={() => handleRemoveItem(item.id)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                Available Items
+              </h3>
+
+              {unselectedItems.length === 0 && selectedItems.length > 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  All items have been added to today's menu.
+                </p>
+              ) : unselectedItems.length === 0 && selectedItems.length === 0 ? (
+                <div className="text-center text-muted-foreground py-8">
+                  <p>No items available.</p>
+                  <p className="text-sm mt-1">Create some items first.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {unselectedItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-start gap-4 p-4 rounded-lg border bg-background hover:bg-muted/50 cursor-pointer transition-colors"
+                      onClick={() => handleAddItem(item)}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-2">
+                          <h4 className="font-medium truncate">{item.name}</h4>
+                          <span className="text-sm text-muted-foreground shrink-0">
+                            ${(item.basePrice / 100).toFixed(2)}
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground line-clamp-1 mt-1">
+                          {item.description}
+                        </p>
+                      </div>
+                      <Button variant="outline" size="sm" className="shrink-0">
+                        <Plus className="h-4 w-4 mr-1" />
+                        Add
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Right column: Date picker */}
