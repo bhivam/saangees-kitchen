@@ -46,7 +46,7 @@ export function MenuEditor() {
     },
   );
 
-  const { data: existingMenu, isFetching } = useQuery(menuQueryOptions);
+  const { data: existingMenu, isPending, isFetching } = useQuery(menuQueryOptions);
 
   // Single save mutation - backend handles both create and update identically
   const saveMenu = useMutation(
@@ -127,7 +127,7 @@ export function MenuEditor() {
   return (
     <div className="flex h-full w-full">
       <div className="flex-1 border-r p-6 overflow-y-auto relative">
-        {isFetching && (
+        {isPending && (
           <div className="absolute inset-0 bg-background/60 flex items-center justify-center z-10">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>

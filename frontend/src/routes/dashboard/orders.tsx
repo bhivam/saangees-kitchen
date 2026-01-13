@@ -1,6 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { OrdersList } from "@/components/orders-list";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/dashboard/orders")({
-  component: OrdersList,
+  beforeLoad: () => {
+    throw redirect({ to: "/dashboard/orders/cooking" });
+  },
 });

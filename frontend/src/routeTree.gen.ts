@@ -20,6 +20,9 @@ import { Route as DashboardModifiersRouteImport } from './routes/dashboard/modif
 import { Route as DashboardMenuRouteImport } from './routes/dashboard/menu'
 import { Route as DashboardItemsRouteImport } from './routes/dashboard/items'
 import { Route as DashboardHomeRouteImport } from './routes/dashboard/home'
+import { Route as DashboardOrdersPaymentRouteImport } from './routes/dashboard/orders/payment'
+import { Route as DashboardOrdersCookingRouteImport } from './routes/dashboard/orders/cooking'
+import { Route as DashboardOrdersBaggingRouteImport } from './routes/dashboard/orders/bagging'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -76,6 +79,21 @@ const DashboardHomeRoute = DashboardHomeRouteImport.update({
   path: '/home',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
+const DashboardOrdersPaymentRoute = DashboardOrdersPaymentRouteImport.update({
+  id: '/payment',
+  path: '/payment',
+  getParentRoute: () => DashboardOrdersRoute,
+} as any)
+const DashboardOrdersCookingRoute = DashboardOrdersCookingRouteImport.update({
+  id: '/cooking',
+  path: '/cooking',
+  getParentRoute: () => DashboardOrdersRoute,
+} as any)
+const DashboardOrdersBaggingRoute = DashboardOrdersBaggingRouteImport.update({
+  id: '/bagging',
+  path: '/bagging',
+  getParentRoute: () => DashboardOrdersRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -87,8 +105,11 @@ export interface FileRoutesByFullPath {
   '/dashboard/items': typeof DashboardItemsRoute
   '/dashboard/menu': typeof DashboardMenuRoute
   '/dashboard/modifiers': typeof DashboardModifiersRoute
-  '/dashboard/orders': typeof DashboardOrdersRoute
+  '/dashboard/orders': typeof DashboardOrdersRouteWithChildren
   '/dashboard/': typeof DashboardIndexRoute
+  '/dashboard/orders/bagging': typeof DashboardOrdersBaggingRoute
+  '/dashboard/orders/cooking': typeof DashboardOrdersCookingRoute
+  '/dashboard/orders/payment': typeof DashboardOrdersPaymentRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -99,8 +120,11 @@ export interface FileRoutesByTo {
   '/dashboard/items': typeof DashboardItemsRoute
   '/dashboard/menu': typeof DashboardMenuRoute
   '/dashboard/modifiers': typeof DashboardModifiersRoute
-  '/dashboard/orders': typeof DashboardOrdersRoute
+  '/dashboard/orders': typeof DashboardOrdersRouteWithChildren
   '/dashboard': typeof DashboardIndexRoute
+  '/dashboard/orders/bagging': typeof DashboardOrdersBaggingRoute
+  '/dashboard/orders/cooking': typeof DashboardOrdersCookingRoute
+  '/dashboard/orders/payment': typeof DashboardOrdersPaymentRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -113,8 +137,11 @@ export interface FileRoutesById {
   '/dashboard/items': typeof DashboardItemsRoute
   '/dashboard/menu': typeof DashboardMenuRoute
   '/dashboard/modifiers': typeof DashboardModifiersRoute
-  '/dashboard/orders': typeof DashboardOrdersRoute
+  '/dashboard/orders': typeof DashboardOrdersRouteWithChildren
   '/dashboard/': typeof DashboardIndexRoute
+  '/dashboard/orders/bagging': typeof DashboardOrdersBaggingRoute
+  '/dashboard/orders/cooking': typeof DashboardOrdersCookingRoute
+  '/dashboard/orders/payment': typeof DashboardOrdersPaymentRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -130,6 +157,9 @@ export interface FileRouteTypes {
     | '/dashboard/modifiers'
     | '/dashboard/orders'
     | '/dashboard/'
+    | '/dashboard/orders/bagging'
+    | '/dashboard/orders/cooking'
+    | '/dashboard/orders/payment'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -142,6 +172,9 @@ export interface FileRouteTypes {
     | '/dashboard/modifiers'
     | '/dashboard/orders'
     | '/dashboard'
+    | '/dashboard/orders/bagging'
+    | '/dashboard/orders/cooking'
+    | '/dashboard/orders/payment'
   id:
     | '__root__'
     | '/'
@@ -155,6 +188,9 @@ export interface FileRouteTypes {
     | '/dashboard/modifiers'
     | '/dashboard/orders'
     | '/dashboard/'
+    | '/dashboard/orders/bagging'
+    | '/dashboard/orders/cooking'
+    | '/dashboard/orders/payment'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -244,15 +280,52 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardHomeRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
+    '/dashboard/orders/payment': {
+      id: '/dashboard/orders/payment'
+      path: '/payment'
+      fullPath: '/dashboard/orders/payment'
+      preLoaderRoute: typeof DashboardOrdersPaymentRouteImport
+      parentRoute: typeof DashboardOrdersRoute
+    }
+    '/dashboard/orders/cooking': {
+      id: '/dashboard/orders/cooking'
+      path: '/cooking'
+      fullPath: '/dashboard/orders/cooking'
+      preLoaderRoute: typeof DashboardOrdersCookingRouteImport
+      parentRoute: typeof DashboardOrdersRoute
+    }
+    '/dashboard/orders/bagging': {
+      id: '/dashboard/orders/bagging'
+      path: '/bagging'
+      fullPath: '/dashboard/orders/bagging'
+      preLoaderRoute: typeof DashboardOrdersBaggingRouteImport
+      parentRoute: typeof DashboardOrdersRoute
+    }
   }
 }
+
+interface DashboardOrdersRouteChildren {
+  DashboardOrdersBaggingRoute: typeof DashboardOrdersBaggingRoute
+  DashboardOrdersCookingRoute: typeof DashboardOrdersCookingRoute
+  DashboardOrdersPaymentRoute: typeof DashboardOrdersPaymentRoute
+}
+
+const DashboardOrdersRouteChildren: DashboardOrdersRouteChildren = {
+  DashboardOrdersBaggingRoute: DashboardOrdersBaggingRoute,
+  DashboardOrdersCookingRoute: DashboardOrdersCookingRoute,
+  DashboardOrdersPaymentRoute: DashboardOrdersPaymentRoute,
+}
+
+const DashboardOrdersRouteWithChildren = DashboardOrdersRoute._addFileChildren(
+  DashboardOrdersRouteChildren,
+)
 
 interface DashboardRouteRouteChildren {
   DashboardHomeRoute: typeof DashboardHomeRoute
   DashboardItemsRoute: typeof DashboardItemsRoute
   DashboardMenuRoute: typeof DashboardMenuRoute
   DashboardModifiersRoute: typeof DashboardModifiersRoute
-  DashboardOrdersRoute: typeof DashboardOrdersRoute
+  DashboardOrdersRoute: typeof DashboardOrdersRouteWithChildren
   DashboardIndexRoute: typeof DashboardIndexRoute
 }
 
@@ -261,7 +334,7 @@ const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardItemsRoute: DashboardItemsRoute,
   DashboardMenuRoute: DashboardMenuRoute,
   DashboardModifiersRoute: DashboardModifiersRoute,
-  DashboardOrdersRoute: DashboardOrdersRoute,
+  DashboardOrdersRoute: DashboardOrdersRouteWithChildren,
   DashboardIndexRoute: DashboardIndexRoute,
 }
 
