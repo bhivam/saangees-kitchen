@@ -64,7 +64,7 @@ export function CartCleanup() {
         if (isValid) {
           validSkuIds.add(skuId);
         }
-      } catch (error) {
+      } catch {
         console.warn(`Invalid SKU format: ${skuId}`);
       }
     }

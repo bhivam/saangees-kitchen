@@ -66,8 +66,8 @@ export function useAuthForm(callbacks?: AuthFormCallbacks) {
       await authClient.phoneNumber.sendOtp({ phoneNumber });
       toast.success("OTP sent! Check backend console for code");
       setCurrentStep("otp");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to send OTP");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to send OTP");
     } finally {
       setIsLoading(false);
     }
@@ -108,8 +108,8 @@ export function useAuthForm(callbacks?: AuthFormCallbacks) {
         toast.success(`Welcome back, ${user.name}!`);
         callbacks?.onSuccess?.(user);
       }
-    } catch (error: any) {
-      toast.error(error.message || "Invalid OTP");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Invalid OTP");
     } finally {
       setIsLoading(false);
     }
@@ -139,8 +139,8 @@ export function useAuthForm(callbacks?: AuthFormCallbacks) {
 
       toast.success(`Welcome, ${fullName}!`);
       callbacks?.onSuccess?.(data);
-    } catch (error: any) {
-      toast.error(error.message || "Failed to update name");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to update name");
     } finally {
       setIsLoading(false);
     }

@@ -2,7 +2,7 @@ import z from "zod";
 import { createTRPCRouter, adminProcedure } from "..";
 import { db } from "../../db/db";
 import { user } from "../../db/schema";
-import { or, ilike, eq, and, not, ne, like } from "drizzle-orm";
+import { or, eq, and, like } from "drizzle-orm";
 
 export const usersRouter = createTRPCRouter({
   searchUsers: adminProcedure

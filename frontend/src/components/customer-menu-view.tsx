@@ -144,7 +144,7 @@ export function CustomerMenuView() {
 
       toast.success("Logged out successfully");
       window.location.href = "/";
-    } catch (error) {
+    } catch {
       toast.error("Logout failed");
     }
   };

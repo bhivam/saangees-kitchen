@@ -1,10 +1,12 @@
 import { useNavigate } from "@tanstack/react-router";
 import { AuthForm } from "./auth-form";
 
+type User = { isAdmin: boolean };
+
 export function LoginForm() {
   const navigate = useNavigate();
 
-  const handleSuccess = (user: any) => {
+  const handleSuccess = (user: User) => {
     if (user.isAdmin) {
       navigate({ to: "/dashboard" });
     } else {

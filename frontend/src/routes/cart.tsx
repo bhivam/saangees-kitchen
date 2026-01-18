@@ -20,7 +20,7 @@ import { AddItemDialogContent } from "@/components/add-item-cart-dialog";
 export const Route = createFileRoute("/cart")({
   component: Cart,
   async beforeLoad() {
-    let session = await authClient.getSession();
+    const session = await authClient.getSession();
     if (session.error || !session.data) {
       const { error } = await authClient.signIn.anonymous();
       if (error) throw new Error("Failed to do create anonymous session");
@@ -153,7 +153,7 @@ function Cart() {
               modifierGroups: prunedModifierGroups,
             },
           ];
-        } catch (error) {
+        } catch {
           console.warn(
             `Invalid or outdated SKU format: ${skuId}. Removing from cart.`,
           );
@@ -254,9 +254,9 @@ function Cart() {
                         <p className="text-lg font-semibold">{item.name}</p>
                         <p className="text-sm font-bold text-slate-700">
                           {item.modifierGroups
-                            .flatMap(({ modifierGroup }: any) =>
+                            .flatMap(({ modifierGroup }) =>
                               modifierGroup.options.map(
-                                (option: any) => option.name,
+                                (option) => option.name,
                               ),
                             )
                             .join(", ")}
