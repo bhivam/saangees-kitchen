@@ -72,3 +72,31 @@
 - `frontend/src/components/orders/manual-entry-table.tsx` - Added sorting functionality
 
 **Next task**: Phase 2, Task 2 - Add pagination state and logic to manual-entry-table.tsx
+
+---
+
+### Phase 2: Table Enhancements - Task 2: Add pagination state and logic
+
+**Status**: ✅ Completed
+
+**What was done**:
+
+**Frontend changes** (`frontend/src/components/orders/manual-entry-table.tsx`):
+- Added `ITEMS_PER_PAGE` constant (10 items per page)
+- Added `currentPage` state starting at 1
+- Added pagination calculations: `totalPages` and `paginatedOrders` slice
+- Added `useEffect` to reset to page 1 when search changes
+- Added `getPageNumbers` helper function that generates page numbers with ellipsis for large page counts:
+  - Shows all pages if totalPages <= 7
+  - Otherwise shows first page, ellipsis, current ±1, ellipsis, last page
+- Changed table body to render `paginatedOrders` instead of `sortedOrders`
+- Added Pagination UI component below the table (only shown when totalPages > 1):
+  - Previous/Next buttons with disabled styling when at bounds
+  - Page number links with active state indication
+  - Ellipsis for large page counts
+- Imported Pagination components from `../ui/pagination`
+
+**Files modified**:
+- `frontend/src/components/orders/manual-entry-table.tsx` - Added pagination functionality
+
+**Next task**: Phase 2, Task 3 - Add view-only button for customer orders

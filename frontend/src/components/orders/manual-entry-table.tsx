@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTRPC } from "@/trpc";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -25,17 +25,63 @@ import { toast } from "sonner";
 import { formatCents } from "@/lib/utils";
 import { AddManualOrderDialog } from "./add-manual-order-dialog";
 import type { RouterOutputs } from "@/trpc";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "../ui/pagination";
 
 type Order = RouterOutputs["orders"]["getOrders"][number];
 
 type SortField = "user" | "date" | "total";
 type SortDirection = "asc" | "desc";
 
+const ITEMS_PER_PAGE = 10;
+
+function getPageNumbers(
+  currentPage: number,
+  totalPages: number,
+): (number | "ellipsis")[] {
+  const pages: (number | "ellipsis")[] = [];
+
+  if (totalPages <= 7) {
+    for (let i = 1; i <= totalPages; i++) {
+      pages.push(i);
+    }
+  } else {
+    pages.push(1);
+
+    if (currentPage > 3) {
+      pages.push("ellipsis");
+    }
+
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
+
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+
+    if (currentPage < totalPages - 2) {
+      pages.push("ellipsis");
+    }
+
+    pages.push(totalPages);
+  }
+
+  return pages;
+}
+
 export function ManualEntryTable({ search }: { search: string }) {
   const [editOrder, setEditOrder] = useState<Order | null>(null);
   const [deleteOrder, setDeleteOrder] = useState<Order | null>(null);
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -90,6 +136,18 @@ export function ManualEntryTable({ search }: { search: string }) {
       return sortDirection === "asc" ? cmp : -cmp;
     });
   }, [filteredOrders, sortField, sortDirection]);
+
+  // Pagination
+  const totalPages = Math.ceil(sortedOrders.length / ITEMS_PER_PAGE);
+  const paginatedOrders = sortedOrders.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE,
+  );
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -160,7 +218,7 @@ export function ManualEntryTable({ search }: { search: string }) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {sortedOrders.map((order) => (
+          {paginatedOrders.map((order) => (
             <TableRow key={order.id}>
               <TableCell>
                 <div className="flex flex-col">
@@ -215,6 +273,51 @@ export function ManualEntryTable({ search }: { search: string }) {
           ))}
         </TableBody>
       </Table>
+      {totalPages > 1 && (
+        <Pagination className="mt-4">
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className={
+                  currentPage === 1
+                    ? "pointer-events-none opacity-50"
+                    : "cursor-pointer"
+                }
+              />
+            </PaginationItem>
+            {getPageNumbers(currentPage, totalPages).map((page, idx) =>
+              page === "ellipsis" ? (
+                <PaginationItem key={`ellipsis-${idx}`}>
+                  <PaginationEllipsis />
+                </PaginationItem>
+              ) : (
+                <PaginationItem key={page}>
+                  <PaginationLink
+                    onClick={() => setCurrentPage(page)}
+                    isActive={currentPage === page}
+                    className="cursor-pointer"
+                  >
+                    {page}
+                  </PaginationLink>
+                </PaginationItem>
+              ),
+            )}
+            <PaginationItem>
+              <PaginationNext
+                onClick={() =>
+                  setCurrentPage((p) => Math.min(totalPages, p + 1))
+                }
+                className={
+                  currentPage === totalPages
+                    ? "pointer-events-none opacity-50"
+                    : "cursor-pointer"
+                }
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      )}
       <AddManualOrderDialog
         open={editOrder !== null}
         onOpenChange={(open: boolean) => !open && setEditOrder(null)}

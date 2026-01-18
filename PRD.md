@@ -267,7 +267,7 @@ if (entryDate < today) {
 
 ### Phase 2: Table Enhancements
 1. ~~Add sorting state and logic~~ ✅
-2. Add pagination state and logic
+2. ~~Add pagination state and logic~~ ✅
 3. Add view-only button for customer orders
 
 ### Phase 3: Dialog Enhancements
