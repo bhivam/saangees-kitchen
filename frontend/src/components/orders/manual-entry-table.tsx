@@ -10,7 +10,7 @@ import {
   TableRow,
 } from "../ui/table";
 import { Button } from "../ui/button";
-import { ArrowDown, ArrowUp, ArrowUpDown, Edit, Trash } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Edit, Eye, Trash } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -78,6 +78,7 @@ function getPageNumbers(
 
 export function ManualEntryTable({ search }: { search: string }) {
   const [editOrder, setEditOrder] = useState<Order | null>(null);
+  const [viewOrder, setViewOrder] = useState<Order | null>(null);
   const [deleteOrder, setDeleteOrder] = useState<Order | null>(null);
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -255,9 +256,11 @@ export function ManualEntryTable({ search }: { search: string }) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => setEditOrder(order)}
+                  onClick={() =>
+                    order.isManual ? setEditOrder(order) : setViewOrder(order)
+                  }
                 >
-                  <Edit />
+                  {order.isManual ? <Edit /> : <Eye />}
                 </Button>
               </TableCell>
               <TableCell>
@@ -322,6 +325,12 @@ export function ManualEntryTable({ search }: { search: string }) {
         open={editOrder !== null}
         onOpenChange={(open: boolean) => !open && setEditOrder(null)}
         editData={editOrder ?? undefined}
+      />
+      <AddManualOrderDialog
+        open={viewOrder !== null}
+        onOpenChange={(open: boolean) => !open && setViewOrder(null)}
+        editData={viewOrder ?? undefined}
+        viewOnly
       />
       <AlertDialog
         open={deleteOrder !== null}

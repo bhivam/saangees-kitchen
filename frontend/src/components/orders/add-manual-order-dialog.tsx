@@ -35,12 +35,14 @@ interface AddManualOrderDialogProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   editData?: Order;
+  viewOnly?: boolean;
 }
 
 export function AddManualOrderDialog({
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
   editData,
+  viewOnly = false,
 }: AddManualOrderDialogProps = {}) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
 
@@ -72,6 +74,7 @@ export function AddManualOrderDialog({
           setOpen={setOpen}
           isEditMode={isEditMode}
           editData={editData}
+          viewOnly={viewOnly}
         />
       )}
     </Dialog>
@@ -82,10 +85,12 @@ function AddManualOrderDialogContent({
   setOpen,
   isEditMode,
   editData,
+  viewOnly,
 }: {
   setOpen: (open: boolean) => void;
   isEditMode: boolean;
   editData?: Order;
+  viewOnly: boolean;
 }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -604,12 +609,14 @@ function AddManualOrderDialogContent({
     <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
       <DialogHeader>
         <DialogTitle>
-          {isEditMode ? "Edit Order" : "Create Manual Order"}
+          {viewOnly ? "View Order" : isEditMode ? "Edit Order" : "Create Manual Order"}
         </DialogTitle>
         <DialogDescription>
           {selectedUser
             ? `Order for ${selectedUser.name}`
-            : "Configure the order items"}
+            : editData
+              ? `Order for ${editData.user.name}`
+              : "Configure the order items"}
         </DialogDescription>
       </DialogHeader>
 
@@ -635,13 +642,15 @@ function AddManualOrderDialogContent({
         <div className="space-y-2">
           <div className="flex justify-between items-center">
             <Label>Items</Label>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setStep("addItem")}
-            >
-              <Plus className="h-4 w-4 mr-1" /> Add Item
-            </Button>
+            {!viewOnly && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setStep("addItem")}
+              >
+                <Plus className="h-4 w-4 mr-1" /> Add Item
+              </Button>
+            )}
           </div>
 
           {items.length === 0 ? (
@@ -666,13 +675,15 @@ function AddManualOrderDialogContent({
                     <span className="font-medium">
                       {formatCents(item.unitPrice * item.quantity)}
                     </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeItem(index)}
-                    >
-                      <Trash className="h-4 w-4" />
-                    </Button>
+                    {!viewOnly && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeItem(index)}
+                      >
+                        <Trash className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -690,26 +701,32 @@ function AddManualOrderDialogContent({
       </div>
 
       <DialogFooter>
-        <Button variant="outline" onClick={() => setOpen(false)}>
-          Cancel
-        </Button>
-        <Button
-          disabled={
-            !selectedUserId ||
-            items.length === 0 ||
-            createOrderMutation.isPending ||
-            updateOrderMutation.isPending
-          }
-          onClick={handleSubmit}
-        >
-          {createOrderMutation.isPending || updateOrderMutation.isPending
-            ? isEditMode
-              ? "Updating..."
-              : "Creating..."
-            : isEditMode
-              ? "Update Order"
-              : "Create Order"}
-        </Button>
+        {viewOnly ? (
+          <Button onClick={() => setOpen(false)}>Close</Button>
+        ) : (
+          <>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={
+                !selectedUserId ||
+                items.length === 0 ||
+                createOrderMutation.isPending ||
+                updateOrderMutation.isPending
+              }
+              onClick={handleSubmit}
+            >
+              {createOrderMutation.isPending || updateOrderMutation.isPending
+                ? isEditMode
+                  ? "Updating..."
+                  : "Creating..."
+                : isEditMode
+                  ? "Update Order"
+                  : "Create Order"}
+            </Button>
+          </>
+        )}
       </DialogFooter>
     </DialogContent>
   );
