@@ -251,4 +251,37 @@
 **Files modified**:
 - `frontend/src/components/orders/add-manual-order-dialog.tsx` - Added client-side per-item due date validation
 
-**Next task**: Phase 3, Task 7 - Track `orderItemId` for proper updates
+---
+
+### Phase 3: Dialog Enhancements - Task 7: Track `orderItemId` for proper updates
+
+**Status**: ✅ Already Completed (in Phase 1, Task 3)
+
+**What was done**:
+
+This task was already fully implemented as part of Phase 1, Task 3 ("Fix `updateManualOrder` to preserve items and validate due dates"). The implementation included:
+
+**Backend** (`backend/src/trpc/router/order.ts`):
+- Extended input schema to accept `orderItemId?: string` for existing items
+- For items with `orderItemId`: UPDATE instead of DELETE/INSERT (preserves `baggedAt` timestamps)
+- For new items (without `orderItemId`): INSERT
+- Delete items that are no longer in the list (and not past-due)
+
+**Frontend** (`frontend/src/components/orders/add-manual-order-dialog.tsx`):
+- Added `orderItemId?: string` field to `OrderItem` interface
+- When loading edit data, populate `orderItemId` from `item.id` for each existing item
+- Updated `handleSubmit` to include `orderItemId` in the update mutation payload
+
+**PRD Update**:
+- Marked Phase 3, Task 7 as complete with note "(already implemented in Phase 1, Task 3)"
+
+**Result**: All tasks in the PRD are now complete.
+
+---
+
+## PRD COMPLETE
+
+All phases and tasks have been implemented:
+- Phase 1: Backend Changes (3/3 tasks) ✅
+- Phase 2: Table Enhancements (3/3 tasks) ✅
+- Phase 3: Dialog Enhancements (7/7 tasks) ✅
