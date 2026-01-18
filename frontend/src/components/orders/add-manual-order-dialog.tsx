@@ -15,7 +15,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-import { formatCents } from "@/lib/utils";
+import { formatCents, toLocalDateString } from "@/lib/utils";
+import { DayPicker } from "react-day-picker";
+import "react-day-picker/style.css";
 import { Checkbox } from "../ui/checkbox";
 import { getWeekDates, type MenuEntry, type MenuItem } from "../customer-menu-view";
 
@@ -118,13 +120,9 @@ function AddManualOrderDialogContent({
   const [step, setStep] = useState<"user" | "items" | "addItem">(
     editData ? "items" : "user",
   );
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, "0");
-    const day = String(today.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  });
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(
+    () => new Date(),
+  );
   const [selectedMenuEntry, setSelectedMenuEntry] = useState<MenuEntry | null>(
     null,
   );
@@ -187,8 +185,9 @@ function AddManualOrderDialogContent({
 
   // Get menu entries for selected date
   const dateMenuEntries = useMemo(() => {
-    if (!menuEntriesQuery.data) return [];
-    return menuEntriesQuery.data.filter((e) => e.date === selectedDate);
+    if (!menuEntriesQuery.data || !selectedDate) return [];
+    const selectedDateStr = toLocalDateString(selectedDate);
+    return menuEntriesQuery.data.filter((e) => e.date === selectedDateStr);
   }, [menuEntriesQuery.data, selectedDate]);
 
   // Calculate item price with modifiers
@@ -367,11 +366,14 @@ function AddManualOrderDialogContent({
           {/* Date selection */}
           <div>
             <Label>Date</Label>
-            <Input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-            />
+            <div className="flex justify-center border rounded-lg p-2">
+              <DayPicker
+                mode="single"
+                selected={selectedDate}
+                onSelect={setSelectedDate}
+                className="rounded-lg"
+              />
+            </div>
           </div>
 
           {/* Menu items for date */}
@@ -420,9 +422,10 @@ function AddManualOrderDialogContent({
                       className="w-full text-left p-3 hover:bg-muted border-b last:border-b-0"
                       onClick={async () => {
                         // Create custom menu entry
+                        if (!selectedDate) return;
                         try {
                           const entry = await createCustomEntryMutation.mutateAsync({
-                            date: selectedDate,
+                            date: toLocalDateString(selectedDate),
                             menuItemId: item.id,
                           });
                           setSelectedMenuEntry({

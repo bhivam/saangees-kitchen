@@ -130,3 +130,27 @@
 - `frontend/src/components/orders/add-manual-order-dialog.tsx` - Added viewOnly prop support
 
 **Next task**: Phase 3, Task 1 - Replace date input with DayPicker
+
+---
+
+### Phase 3: Dialog Enhancements - Task 1: Replace date input with DayPicker
+
+**Status**: ✅ Completed
+
+**What was done**:
+
+**Frontend changes** (`frontend/src/components/orders/add-manual-order-dialog.tsx`):
+- Added imports for `DayPicker` from `react-day-picker` and its CSS
+- Added import for `toLocalDateString` utility from `@/lib/utils`
+- Changed `selectedDate` state from `string` to `Date | undefined`, initialized to `new Date()`
+- Updated `dateMenuEntries` useMemo to convert `selectedDate` to string using `toLocalDateString()` for comparison
+- Updated custom entry creation to guard against undefined `selectedDate` and convert using `toLocalDateString()`
+- Replaced native `<Input type="date">` with inline `<DayPicker>` component:
+  - Uses `mode="single"` for single date selection
+  - Wrapped in a centered, bordered container for consistent styling
+  - Connects `selected` and `onSelect` to the `selectedDate` state
+
+**Files modified**:
+- `frontend/src/components/orders/add-manual-order-dialog.tsx` - Replaced date input with DayPicker
+
+**Next task**: Phase 3, Task 2 - Reorganize item selection UI (grouped by day + All Items)

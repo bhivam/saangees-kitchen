@@ -271,7 +271,7 @@ if (entryDate < today) {
 3. ~~Add view-only button for customer orders~~ ✅
 
 ### Phase 3: Dialog Enhancements
-1. Replace date input with DayPicker
+1. ~~Replace date input with DayPicker~~ ✅
 2. Reorganize item selection UI (grouped by day + All Items)
 3. Add "Create Item" button with callback
 4. Replace trash with QuantityStepper
