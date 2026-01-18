@@ -227,6 +227,7 @@ export const menuRouter = createTRPCRouter({
     }),
 
   // Create a custom menu entry for manual orders
+  // If a custom entry already exists for the same date and menu item, returns the existing one
   createCustomMenuEntry: adminProcedure
     .input(
       z.object({
@@ -235,6 +236,41 @@ export const menuRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input }) => {
+      // Check if a custom entry already exists for this date and menu item
+      const existingEntry = await db.query.menuEntries.findFirst({
+        where: and(
+          eq(menuEntries.date, input.date),
+          eq(menuEntries.menuItemId, input.menuItemId),
+          eq(menuEntries.isCustom, true),
+        ),
+        with: {
+          menuItem: {
+            with: {
+              modifierGroups: {
+                with: {
+                  modifierGroup: {
+                    with: {
+                      options: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      // If a custom entry already exists, return it
+      if (existingEntry) {
+        return {
+          id: existingEntry.id,
+          date: existingEntry.date,
+          sortOrder: existingEntry.sortOrder,
+          isCustom: existingEntry.isCustom,
+          menuItem: existingEntry.menuItem,
+        };
+      }
+
       // Verify the menu item exists
       const menuItem = await db.query.menuItems.findFirst({
         where: eq(menuItems.id, input.menuItemId),
@@ -283,6 +319,39 @@ export const menuRouter = createTRPCRouter({
         isCustom: entry.isCustom,
         menuItem,
       };
+    }),
+
+  // Convert a custom menu entry to a normal entry (when added to Menu Editor)
+  convertCustomToNormal: adminProcedure
+    .input(
+      z.object({
+        entryId: z.string().uuid(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const entry = await db.query.menuEntries.findFirst({
+        where: eq(menuEntries.id, input.entryId),
+      });
+
+      if (!entry) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Menu entry not found",
+        });
+      }
+
+      if (!entry.isCustom) {
+        // Already a normal entry, nothing to do
+        return entry;
+      }
+
+      const [updated] = await db
+        .update(menuEntries)
+        .set({ isCustom: false })
+        .where(eq(menuEntries.id, input.entryId))
+        .returning();
+
+      return updated;
     }),
 });
 
