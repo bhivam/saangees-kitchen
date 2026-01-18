@@ -263,7 +263,7 @@ if (entryDate < today) {
 ### Phase 1: Backend Changes
 1. ~~Modify `createCustomMenuEntry` for duplicate prevention~~ ✅ (already implemented)
 2. ~~Add `convertCustomToNormal` mutation~~ ✅
-3. Fix `updateManualOrder` to preserve items and validate due dates
+3. ~~Fix `updateManualOrder` to preserve items and validate due dates~~ ✅
 
 ### Phase 2: Table Enhancements
 1. Add sorting state and logic

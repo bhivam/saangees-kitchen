@@ -701,6 +701,7 @@ export const ordersRouter = createTRPCRouter({
         orderId: z.string().uuid(),
         items: z.array(
           z.object({
+            orderItemId: z.string().uuid().optional(), // Existing item ID for updates
             menuEntryId: z.string().uuid(),
             quantity: z.number().int().positive(),
             modifierOptionIds: z.array(z.string().uuid()),
@@ -728,6 +729,16 @@ export const ordersRouter = createTRPCRouter({
         });
       }
 
+      // Fetch existing order items with their menu entries for due date validation
+      const existingOrderItems = await db.query.orderItems.findMany({
+        where: eq(orderItems.orderId, input.orderId),
+        with: {
+          menuEntry: true,
+          modifiers: true,
+        },
+      });
+      const existingItemMap = new Map(existingOrderItems.map((i) => [i.id, i]));
+
       // Fetch menu entries with their menu items to get base prices
       const menuEntryIds = input.items.map((i) => i.menuEntryId);
       const entriesWithItems = await db.query.menuEntries.findMany({
@@ -750,7 +761,10 @@ export const ordersRouter = createTRPCRouter({
           : [];
       const optionMap = new Map(modifierOptionsData.map((o) => [o.id, o]));
 
-      // Calculate total and validate
+      // Get today's date for due date validation
+      const today = normalizeDate(new Date());
+
+      // Validate items and check for past-due modifications
       let total = 0;
       for (const item of input.items) {
         const entry = entryMap.get(item.menuEntryId);
@@ -759,6 +773,36 @@ export const ordersRouter = createTRPCRouter({
             code: "BAD_REQUEST",
             message: `Menu entry ${item.menuEntryId} not found`,
           });
+        }
+
+        // Due date validation: check if item is past due and being modified
+        const entryDate = normalizeDate(entry.date);
+        if (entryDate && today && entryDate < today && item.orderItemId) {
+          // This is an existing item for a past date - check if it's being modified
+          const existingItem = existingItemMap.get(item.orderItemId);
+          if (existingItem) {
+            // Compare quantities
+            if (existingItem.quantity !== item.quantity) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: `Cannot modify item "${entry.menuItem.name}" - due date has passed`,
+              });
+            }
+            // Compare modifier options
+            const existingModifierIds = existingItem.modifiers
+              .map((m) => m.modifierOptionId)
+              .sort();
+            const newModifierIds = [...item.modifierOptionIds].sort();
+            if (
+              existingModifierIds.length !== newModifierIds.length ||
+              !existingModifierIds.every((id, idx) => id === newModifierIds[idx])
+            ) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: `Cannot modify item "${entry.menuItem.name}" - due date has passed`,
+              });
+            }
+          }
         }
 
         let itemTotal = entry.menuItem.basePrice;
@@ -777,23 +821,38 @@ export const ordersRouter = createTRPCRouter({
 
       // Update order within transaction
       return await db.transaction(async (tx) => {
-        // Delete existing order item modifiers
-        const existingItems = await tx
-          .select({ id: orderItems.id })
-          .from(orderItems)
-          .where(eq(orderItems.orderId, input.orderId));
+        // Track which existing items are being kept
+        const keptItemIds = new Set(
+          input.items
+            .filter((i) => i.orderItemId)
+            .map((i) => i.orderItemId as string),
+        );
 
-        if (existingItems.length > 0) {
-          await tx.delete(orderItemModifiers).where(
-            inArray(
-              orderItemModifiers.orderItemId,
-              existingItems.map((i) => i.id),
-            ),
-          );
+        // Find items to delete (items not in the new list)
+        const itemsToDelete = existingOrderItems.filter(
+          (i) => !keptItemIds.has(i.id),
+        );
+
+        // Validate that we're not deleting past-due items
+        for (const item of itemsToDelete) {
+          const entryDate = normalizeDate(item.menuEntry.date);
+          if (entryDate && today && entryDate < today) {
+            const entry = entryMap.get(item.menuEntryId) ?? { menuItem: { name: "Unknown item" } };
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `Cannot remove item "${entry.menuItem.name}" - due date has passed`,
+            });
+          }
         }
 
-        // Delete existing order items
-        await tx.delete(orderItems).where(eq(orderItems.orderId, input.orderId));
+        // Delete modifiers and items that are no longer in the list
+        if (itemsToDelete.length > 0) {
+          const deleteIds = itemsToDelete.map((i) => i.id);
+          await tx
+            .delete(orderItemModifiers)
+            .where(inArray(orderItemModifiers.orderItemId, deleteIds));
+          await tx.delete(orderItems).where(inArray(orderItems.id, deleteIds));
+        }
 
         // Update order total
         await tx
@@ -801,35 +860,64 @@ export const ordersRouter = createTRPCRouter({
           .set({ total, updatedAt: new Date() })
           .where(eq(orders.id, input.orderId));
 
-        // Create new order items
+        // Process each item: update existing or insert new
         for (const item of input.items) {
           const entry = entryMap.get(item.menuEntryId)!;
-          const [orderItem] = await tx
-            .insert(orderItems)
-            .values({
-              orderId: input.orderId,
-              menuEntryId: item.menuEntryId,
-              quantity: item.quantity,
-              itemPrice: entry.menuItem.basePrice,
-            })
-            .returning();
 
-          if (!orderItem) {
-            throw new TRPCError({
-              code: "INTERNAL_SERVER_ERROR",
-              message: "Failed to create order item",
-            });
-          }
+          if (item.orderItemId && existingItemMap.has(item.orderItemId)) {
+            // Update existing item (preserves baggedAt and other fields)
+            await tx
+              .update(orderItems)
+              .set({
+                menuEntryId: item.menuEntryId,
+                quantity: item.quantity,
+                itemPrice: entry.menuItem.basePrice,
+              })
+              .where(eq(orderItems.id, item.orderItemId));
 
-          // Create order item modifiers
-          if (item.modifierOptionIds.length > 0) {
-            await tx.insert(orderItemModifiers).values(
-              item.modifierOptionIds.map((optId) => ({
-                orderItemId: orderItem.id,
-                modifierOptionId: optId,
-                optionPrice: optionMap.get(optId)!.priceDelta,
-              })),
-            );
+            // Delete existing modifiers and recreate
+            await tx
+              .delete(orderItemModifiers)
+              .where(eq(orderItemModifiers.orderItemId, item.orderItemId));
+
+            if (item.modifierOptionIds.length > 0) {
+              await tx.insert(orderItemModifiers).values(
+                item.modifierOptionIds.map((optId) => ({
+                  orderItemId: item.orderItemId!,
+                  modifierOptionId: optId,
+                  optionPrice: optionMap.get(optId)!.priceDelta,
+                })),
+              );
+            }
+          } else {
+            // Insert new item
+            const [newOrderItem] = await tx
+              .insert(orderItems)
+              .values({
+                orderId: input.orderId,
+                menuEntryId: item.menuEntryId,
+                quantity: item.quantity,
+                itemPrice: entry.menuItem.basePrice,
+              })
+              .returning();
+
+            if (!newOrderItem) {
+              throw new TRPCError({
+                code: "INTERNAL_SERVER_ERROR",
+                message: "Failed to create order item",
+              });
+            }
+
+            // Create order item modifiers
+            if (item.modifierOptionIds.length > 0) {
+              await tx.insert(orderItemModifiers).values(
+                item.modifierOptionIds.map((optId) => ({
+                  orderItemId: newOrderItem.id,
+                  modifierOptionId: optId,
+                  optionPrice: optionMap.get(optId)!.priceDelta,
+                })),
+              );
+            }
           }
         }
 

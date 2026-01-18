@@ -22,6 +22,7 @@ import { getWeekDates, type MenuEntry, type MenuItem } from "../customer-menu-vi
 type Order = RouterOutputs["orders"]["getOrders"][number];
 
 interface OrderItem {
+  orderItemId?: string; // Existing order item ID for updates
   menuEntryId: string;
   menuItemName: string;
   quantity: number;
@@ -96,8 +97,9 @@ function AddManualOrderDialogContent({
   const [userSearch, setUserSearch] = useState("");
   const [items, setItems] = useState<OrderItem[]>(() => {
     if (!editData) return [];
-    // Convert edit data items to our format
+    // Convert edit data items to our format, including orderItemId for updates
     return editData.items.map((item) => ({
+      orderItemId: item.id, // Preserve existing item ID for proper updates
       menuEntryId: item.menuEntryId,
       menuItemName: item.menuEntry.menuItem.name,
       quantity: item.quantity,
@@ -253,21 +255,27 @@ function AddManualOrderDialogContent({
   const handleSubmit = () => {
     if (!selectedUserId || items.length === 0) return;
 
-    const orderItems = items.map((item) => ({
-      menuEntryId: item.menuEntryId,
-      quantity: item.quantity,
-      modifierOptionIds: item.modifierOptionIds,
-    }));
-
     if (isEditMode && editData) {
+      // Include orderItemId for existing items to preserve baggedAt timestamps
+      const updateItems = items.map((item) => ({
+        orderItemId: item.orderItemId,
+        menuEntryId: item.menuEntryId,
+        quantity: item.quantity,
+        modifierOptionIds: item.modifierOptionIds,
+      }));
       updateOrderMutation.mutate({
         orderId: editData.id,
-        items: orderItems,
+        items: updateItems,
       });
     } else {
+      const createItems = items.map((item) => ({
+        menuEntryId: item.menuEntryId,
+        quantity: item.quantity,
+        modifierOptionIds: item.modifierOptionIds,
+      }));
       createOrderMutation.mutate({
         userId: selectedUserId,
-        items: orderItems,
+        items: createItems,
       });
     }
   };

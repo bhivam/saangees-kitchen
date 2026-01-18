@@ -19,3 +19,34 @@
 - `backend/src/trpc/router/menu.ts` - Added `convertCustomToNormal` mutation
 
 **Next task**: Phase 1, Task 3 - Fix `updateManualOrder` to preserve items and validate due dates
+
+---
+
+### Phase 1: Backend Changes - Task 3: Fix `updateManualOrder` to preserve items and validate due dates
+
+**Status**: ✅ Completed
+
+**What was done**:
+
+**Backend changes** (`backend/src/trpc/router/order.ts:698-926`):
+- Extended input schema to accept `orderItemId?: string` for existing items
+- Fetches existing order items with their menu entries for due date validation
+- Added server-side due date validation:
+  - Compares item quantity and modifiers to detect modifications
+  - Rejects modifications to items whose menu entry date is in the past
+  - Rejects deletion of past-due items
+- Changed update logic to:
+  - UPDATE existing items (with `orderItemId`) instead of DELETE/INSERT - preserves `baggedAt` timestamps
+  - INSERT new items (without `orderItemId`)
+  - DELETE only items that are no longer in the list (and not past-due)
+
+**Frontend changes** (`frontend/src/components/orders/add-manual-order-dialog.tsx`):
+- Added `orderItemId?: string` field to `OrderItem` interface
+- When loading edit data, populate `orderItemId` from `item.id` for each existing item
+- Updated `handleSubmit` to include `orderItemId` in the update mutation payload
+
+**Files modified**:
+- `backend/src/trpc/router/order.ts` - Rewrote `updateManualOrder` mutation
+- `frontend/src/components/orders/add-manual-order-dialog.tsx` - Added `orderItemId` tracking
+
+**Next task**: Phase 2, Task 1 - Add sorting state and logic to manual-entry-table.tsx
