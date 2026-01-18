@@ -198,3 +198,30 @@
 - `frontend/src/hooks/use-add-item-form.ts` - Added onCreated callback support
 
 **Next task**: Phase 3, Task 4 - Replace trash with QuantityStepper
+
+---
+
+### Phase 3: Dialog Enhancements - Task 4: Replace trash with QuantityStepper
+
+**Status**: ✅ Completed
+
+**What was done**:
+
+**Frontend changes** (`frontend/src/components/orders/add-manual-order-dialog.tsx`):
+- Added import for `QuantityStepper` component from `../quantity-stepper`
+- Changed `Trash` icon import to `Trash2` for use as the reduce icon when quantity is 1
+- Added `updateItemQuantity` function to update an item's quantity at a specific index
+- Replaced the Trash button in the items list with `QuantityStepper`:
+  - Shows quantity value with +/- buttons
+  - When quantity is 1, the reduce button shows a Trash2 icon and removes the item
+  - When quantity > 1, the reduce button decrements the quantity
+  - Increase button increments the quantity
+  - In view-only mode, shows just "×{quantity}" text instead of the stepper
+- Removed the redundant quantity prefix from item name (since quantity is now shown in the stepper)
+
+**Files modified**:
+- `frontend/src/components/orders/add-manual-order-dialog.tsx` - Replaced trash button with QuantityStepper
+
+**Note**: Task 5 (`viewOnly` prop support) was already implemented as part of Phase 2, Task 3, so it's marked as complete in the PRD.
+
+**Next task**: Phase 3, Task 6 - Add per-item due date validation

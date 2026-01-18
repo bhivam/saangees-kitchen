@@ -8,7 +8,8 @@ import {
   DialogTrigger,
 } from "../ui/dialog";
 import { Button } from "../ui/button";
-import { ChevronDown, ChevronRight, Plus, Trash, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Trash2, X } from "lucide-react";
+import { QuantityStepper } from "../quantity-stepper";
 import { useState, useMemo } from "react";
 import { useTRPC, type RouterOutputs } from "@/trpc";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -273,6 +274,11 @@ function AddManualOrderDialogContent({
   // Remove item from order
   const removeItem = (index: number) => {
     setItems(items.filter((_, i) => i !== index));
+  };
+
+  // Update item quantity
+  const updateItemQuantity = (index: number, newQuantity: number) => {
+    setItems(items.map((item, i) => (i === index ? { ...item, quantity: newQuantity } : item)));
   };
 
   // Handle when a new menu item is created via AddItemDialog
@@ -803,27 +809,34 @@ function AddManualOrderDialogContent({
               {items.map((item, index) => (
                 <div key={index} className="p-3 flex justify-between items-start">
                   <div className="flex-1">
-                    <div className="font-medium">
-                      {item.quantity}x {item.menuItemName}
-                    </div>
+                    <div className="font-medium">{item.menuItemName}</div>
                     {item.modifierNames.length > 0 && (
                       <div className="text-sm text-muted-foreground">
                         {item.modifierNames.join(", ")}
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     <span className="font-medium">
                       {formatCents(item.unitPrice * item.quantity)}
                     </span>
-                    {!viewOnly && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeItem(index)}
-                      >
-                        <Trash className="h-4 w-4" />
-                      </Button>
+                    {viewOnly ? (
+                      <span className="text-muted-foreground">×{item.quantity}</span>
+                    ) : (
+                      <QuantityStepper
+                        value={item.quantity}
+                        onReduce={() => {
+                          if (item.quantity <= 1) {
+                            removeItem(index);
+                          } else {
+                            updateItemQuantity(index, item.quantity - 1);
+                          }
+                        }}
+                        onIncrease={() => updateItemQuantity(index, item.quantity + 1)}
+                        reduceIcon={item.quantity <= 1 ? <Trash2 className="size-4" /> : undefined}
+                        reduceDisabled={false}
+                        increaseDisabled={false}
+                      />
                     )}
                   </div>
                 </div>
