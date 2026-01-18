@@ -8,7 +8,6 @@ const ADMIN_PHONE_NUMBERS = [
 export function isAdminPhoneNumber(
   phoneNumber: string | null | undefined,
 ): boolean {
-  console.log(phoneNumber);
   if (!phoneNumber) return false;
   return ADMIN_PHONE_NUMBERS.includes(phoneNumber);
 }

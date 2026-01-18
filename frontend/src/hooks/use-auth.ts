@@ -12,8 +12,8 @@ export function useAuth() {
     session,
     isPending,
     isAuthenticated: !!user,
-    isAdmin: user?.isAdmin,
-    isCustomer: !user?.isAdmin,
+    isAdmin: user?.role === "admin",
+    isCustomer: user?.role !== "admin",
     isProfileIncomplete: isProfileIncomplete(user),
   };
 }

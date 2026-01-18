@@ -23,11 +23,16 @@ import {
   ChefHat,
   ShoppingBag,
   CreditCard,
+  NotebookPen,
 } from "lucide-react";
 
 const menuManagementItems = [
   { name: "Item Manager", icon: Clipboard, to: "/dashboard/items" },
-  { name: "Modifier Manager", icon: SlidersHorizontal, to: "/dashboard/modifiers" },
+  {
+    name: "Modifier Manager",
+    icon: SlidersHorizontal,
+    to: "/dashboard/modifiers",
+  },
   { name: "Menu Editor", icon: Menu, to: "/dashboard/menu" },
 ] as const;
 
@@ -35,9 +40,14 @@ const orderItems = [
   { name: "Cooking", icon: ChefHat, to: "/dashboard/cooking" },
   { name: "Bagging", icon: ShoppingBag, to: "/dashboard/bagging" },
   { name: "Payment", icon: CreditCard, to: "/dashboard/payment" },
+  { name: "Manual Entry", icon: NotebookPen, to: "/dashboard/manual-entry" },
 ] as const;
 
-export function MerchantDashboardSidebar({ className }: { className?: string }) {
+export function MerchantDashboardSidebar({
+  className,
+}: {
+  className?: string;
+}) {
   const { toggleSidebar, state } = useSidebar();
   const isCollapsed = state === "collapsed";
 
@@ -58,7 +68,10 @@ export function MerchantDashboardSidebar({ className }: { className?: string }) 
                 <SidebarMenuButton asChild tooltip="Home">
                   <Link
                     to="/dashboard/home"
-                    activeProps={{ className: "bg-sidebar-accent text-sidebar-accent-foreground" }}
+                    activeProps={{
+                      className:
+                        "bg-sidebar-accent text-sidebar-accent-foreground",
+                    }}
                   >
                     <Home />
                     <span>Home</span>
@@ -79,7 +92,10 @@ export function MerchantDashboardSidebar({ className }: { className?: string }) 
                   <SidebarMenuButton asChild tooltip={name}>
                     <Link
                       to={to}
-                      activeProps={{ className: "bg-sidebar-accent text-sidebar-accent-foreground" }}
+                      activeProps={{
+                        className:
+                          "bg-sidebar-accent text-sidebar-accent-foreground",
+                      }}
                     >
                       <Icon />
                       <span>{name}</span>
@@ -101,7 +117,10 @@ export function MerchantDashboardSidebar({ className }: { className?: string }) 
                   <SidebarMenuButton asChild tooltip={name}>
                     <Link
                       to={to}
-                      activeProps={{ className: "bg-sidebar-accent text-sidebar-accent-foreground" }}
+                      activeProps={{
+                        className:
+                          "bg-sidebar-accent text-sidebar-accent-foreground",
+                      }}
                     >
                       <Icon />
                       <span>{name}</span>
@@ -132,3 +151,4 @@ export function MerchantDashboardSidebar({ className }: { className?: string }) 
     </Sidebar>
   );
 }
+

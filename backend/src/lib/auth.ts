@@ -1,10 +1,11 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "../db/db";
-import { anonymous, phoneNumber } from "better-auth/plugins";
+import { admin, anonymous, phoneNumber } from "better-auth/plugins";
 import { env } from "../env";
 import { user } from "../db/schema";
 import { isAdminPhoneNumber } from "./admin-phones";
+import { eq } from "drizzle-orm";
 
 export const auth = betterAuth({
   baseURL: env.SERVER_URL,
@@ -17,8 +18,12 @@ export const auth = betterAuth({
     },
   },
   plugins: [
+    admin(),
     anonymous({
-      onLinkAccount({ anonymousUser, newUser }) {},
+      onLinkAccount({}) {
+        // if there are ever resources created for anonymous users, they should be transferred over to
+        // new users here
+      },
     }),
     phoneNumber({
       sendOTP: ({ phoneNumber, code }) => {
@@ -28,7 +33,11 @@ export const auth = betterAuth({
       async callbackOnVerification(data) {
         await db
           .update(user)
-          .set({ isAdmin: isAdminPhoneNumber(data.phoneNumber) });
+          .set({
+            isAnonymous: false,
+            role: isAdminPhoneNumber(data.phoneNumber) ? "admin" : "user",
+          })
+          .where(eq(user.phoneNumber, data.phoneNumber));
       },
       signUpOnVerification: {
         getTempEmail: (phoneNumber) => {
@@ -40,15 +49,6 @@ export const auth = betterAuth({
       },
     }),
   ],
-  user: {
-    additionalFields: {
-      isAdmin: {
-        type: "boolean",
-        required: true,
-        defaultValue: false,
-      },
-    },
-  },
   database: drizzleAdapter(db, { provider: "pg" }),
 });
 

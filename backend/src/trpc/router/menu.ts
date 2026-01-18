@@ -23,7 +23,11 @@ export const menuRouter = createTRPCRouter({
         .from(menuEntries)
         .innerJoin(menuItems, eq(menuEntries.menuItemId, menuItems.id))
         .where(
-          and(eq(menuEntries.date, input.date), isNull(menuItems.deletedAt)),
+          and(
+            eq(menuEntries.date, input.date),
+            isNull(menuItems.deletedAt),
+            eq(menuEntries.isCustom, false),
+          ),
         )
         .orderBy(menuEntries.sortOrder);
 
@@ -34,6 +38,7 @@ export const menuRouter = createTRPCRouter({
     .input(
       z.object({
         dates: z.array(z.string()),
+        includeCustom: z.boolean().optional().default(false),
       }),
     )
     .query(async ({ input }) => {
@@ -42,7 +47,12 @@ export const menuRouter = createTRPCRouter({
       }
 
       const menuEntriesResult = await db.query.menuEntries.findMany({
-        where: inArray(menuEntries.date, input.dates),
+        where: input.includeCustom
+          ? inArray(menuEntries.date, input.dates)
+          : and(
+              inArray(menuEntries.date, input.dates),
+              eq(menuEntries.isCustom, false),
+            ),
         with: {
           menuItem: {
             with: {
@@ -214,6 +224,65 @@ export const menuRouter = createTRPCRouter({
 
         return { date: input.date, entries: newEntries };
       });
+    }),
+
+  // Create a custom menu entry for manual orders
+  createCustomMenuEntry: adminProcedure
+    .input(
+      z.object({
+        date: z.string(),
+        menuItemId: z.string().uuid(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      // Verify the menu item exists
+      const menuItem = await db.query.menuItems.findFirst({
+        where: eq(menuItems.id, input.menuItemId),
+        with: {
+          modifierGroups: {
+            with: {
+              modifierGroup: {
+                with: {
+                  options: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!menuItem) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Menu item not found",
+        });
+      }
+
+      // Create the custom menu entry
+      const [entry] = await db
+        .insert(menuEntries)
+        .values({
+          date: input.date,
+          menuItemId: input.menuItemId,
+          sortOrder: 9999, // Custom entries don't need specific order
+          isCustom: true,
+        })
+        .returning();
+
+      if (!entry) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to create custom menu entry",
+        });
+      }
+
+      return {
+        id: entry.id,
+        date: entry.date,
+        sortOrder: entry.sortOrder,
+        isCustom: entry.isCustom,
+        menuItem,
+      };
     }),
 });
 

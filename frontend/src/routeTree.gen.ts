@@ -18,6 +18,7 @@ import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as DashboardPaymentRouteImport } from './routes/dashboard/payment'
 import { Route as DashboardModifiersRouteImport } from './routes/dashboard/modifiers'
 import { Route as DashboardMenuRouteImport } from './routes/dashboard/menu'
+import { Route as DashboardManualEntryRouteImport } from './routes/dashboard/manual-entry'
 import { Route as DashboardItemsRouteImport } from './routes/dashboard/items'
 import { Route as DashboardHomeRouteImport } from './routes/dashboard/home'
 import { Route as DashboardCookingRouteImport } from './routes/dashboard/cooking'
@@ -68,6 +69,11 @@ const DashboardMenuRoute = DashboardMenuRouteImport.update({
   path: '/menu',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
+const DashboardManualEntryRoute = DashboardManualEntryRouteImport.update({
+  id: '/manual-entry',
+  path: '/manual-entry',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
 const DashboardItemsRoute = DashboardItemsRouteImport.update({
   id: '/items',
   path: '/items',
@@ -99,6 +105,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/cooking': typeof DashboardCookingRoute
   '/dashboard/home': typeof DashboardHomeRoute
   '/dashboard/items': typeof DashboardItemsRoute
+  '/dashboard/manual-entry': typeof DashboardManualEntryRoute
   '/dashboard/menu': typeof DashboardMenuRoute
   '/dashboard/modifiers': typeof DashboardModifiersRoute
   '/dashboard/payment': typeof DashboardPaymentRoute
@@ -113,6 +120,7 @@ export interface FileRoutesByTo {
   '/dashboard/cooking': typeof DashboardCookingRoute
   '/dashboard/home': typeof DashboardHomeRoute
   '/dashboard/items': typeof DashboardItemsRoute
+  '/dashboard/manual-entry': typeof DashboardManualEntryRoute
   '/dashboard/menu': typeof DashboardMenuRoute
   '/dashboard/modifiers': typeof DashboardModifiersRoute
   '/dashboard/payment': typeof DashboardPaymentRoute
@@ -129,6 +137,7 @@ export interface FileRoutesById {
   '/dashboard/cooking': typeof DashboardCookingRoute
   '/dashboard/home': typeof DashboardHomeRoute
   '/dashboard/items': typeof DashboardItemsRoute
+  '/dashboard/manual-entry': typeof DashboardManualEntryRoute
   '/dashboard/menu': typeof DashboardMenuRoute
   '/dashboard/modifiers': typeof DashboardModifiersRoute
   '/dashboard/payment': typeof DashboardPaymentRoute
@@ -146,6 +155,7 @@ export interface FileRouteTypes {
     | '/dashboard/cooking'
     | '/dashboard/home'
     | '/dashboard/items'
+    | '/dashboard/manual-entry'
     | '/dashboard/menu'
     | '/dashboard/modifiers'
     | '/dashboard/payment'
@@ -160,6 +170,7 @@ export interface FileRouteTypes {
     | '/dashboard/cooking'
     | '/dashboard/home'
     | '/dashboard/items'
+    | '/dashboard/manual-entry'
     | '/dashboard/menu'
     | '/dashboard/modifiers'
     | '/dashboard/payment'
@@ -175,6 +186,7 @@ export interface FileRouteTypes {
     | '/dashboard/cooking'
     | '/dashboard/home'
     | '/dashboard/items'
+    | '/dashboard/manual-entry'
     | '/dashboard/menu'
     | '/dashboard/modifiers'
     | '/dashboard/payment'
@@ -254,6 +266,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardMenuRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
+    '/dashboard/manual-entry': {
+      id: '/dashboard/manual-entry'
+      path: '/manual-entry'
+      fullPath: '/dashboard/manual-entry'
+      preLoaderRoute: typeof DashboardManualEntryRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
     '/dashboard/items': {
       id: '/dashboard/items'
       path: '/items'
@@ -290,6 +309,7 @@ interface DashboardRouteRouteChildren {
   DashboardCookingRoute: typeof DashboardCookingRoute
   DashboardHomeRoute: typeof DashboardHomeRoute
   DashboardItemsRoute: typeof DashboardItemsRoute
+  DashboardManualEntryRoute: typeof DashboardManualEntryRoute
   DashboardMenuRoute: typeof DashboardMenuRoute
   DashboardModifiersRoute: typeof DashboardModifiersRoute
   DashboardPaymentRoute: typeof DashboardPaymentRoute
@@ -301,6 +321,7 @@ const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardCookingRoute: DashboardCookingRoute,
   DashboardHomeRoute: DashboardHomeRoute,
   DashboardItemsRoute: DashboardItemsRoute,
+  DashboardManualEntryRoute: DashboardManualEntryRoute,
   DashboardMenuRoute: DashboardMenuRoute,
   DashboardModifiersRoute: DashboardModifiersRoute,
   DashboardPaymentRoute: DashboardPaymentRoute,

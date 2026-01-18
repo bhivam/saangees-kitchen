@@ -1,7 +1,6 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { CreateExpressContextOptions } from "@trpc/server/adapters/express";
 import { auth } from "../lib/auth";
-import { isAdminPhoneNumber } from "../lib/admin-phones";
 import { fromNodeHeaders } from "better-auth/node";
 
 export async function createContext({ req }: CreateExpressContextOptions) {
@@ -14,7 +13,7 @@ export async function createContext({ req }: CreateExpressContextOptions) {
   }
 
   const { session, user } = sessionData;
-  const isAdmin = isAdminPhoneNumber(user.phoneNumber);
+  const isAdmin = user.role === "admin";
 
   return {
     session,
@@ -51,7 +50,6 @@ const timingMiddleware = t.middleware(async ({ next, path }) => {
 });
 
 const authMiddleware = t.middleware(async ({ ctx, next }) => {
-  console.log(ctx);
   if (!ctx.session || !ctx.user) {
     throw new TRPCError({
       code: "UNAUTHORIZED",
