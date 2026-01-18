@@ -272,8 +272,8 @@ if (entryDate < today) {
 
 ### Phase 3: Dialog Enhancements
 1. ~~Replace date input with DayPicker~~ ✅
-2. Reorganize item selection UI (grouped by day + All Items)
-3. Add "Create Item" button with callback
+2. ~~Reorganize item selection UI (grouped by day + All Items)~~ ✅
+3. ~~Add "Create Item" button with callback~~ ✅
 4. Replace trash with QuantityStepper
 5. Add `viewOnly` prop support
 6. Add per-item due date validation

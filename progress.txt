@@ -154,3 +154,47 @@
 - `frontend/src/components/orders/add-manual-order-dialog.tsx` - Replaced date input with DayPicker
 
 **Next task**: Phase 3, Task 2 - Reorganize item selection UI (grouped by day + All Items)
+
+---
+
+### Phase 3: Dialog Enhancements - Tasks 2 & 3: Reorganize item selection UI + Create Item button
+
+**Status**: ✅ Completed
+
+**What was done**:
+
+**Frontend changes** (`frontend/src/components/orders/add-manual-order-dialog.tsx`):
+- Added imports for `ChevronDown`, `ChevronRight` icons and `formatDate` utility
+- Added import for `AddItemDialog` component
+- Added new state:
+  - `expandedDays` - tracks which day sections are expanded in the grouped view
+  - `allItemsExpanded` - tracks if "All Items" section is expanded
+  - `addItemDialogOpen` - controls the AddItemDialog visibility
+- Added `next7Days` useMemo to get dates for next 7 days
+- Added `menuEntriesByDay` useMemo to group menu entries by date
+- Added helper functions:
+  - `handleNewItemCreated` - handles when a new item is created via AddItemDialog, auto-creates custom entry and selects it for modifier configuration
+  - `handleSelectEntry` - handles selecting an entry from the grouped list
+  - `handleSelectMenuItem` - handles creating a custom entry from "All Items" section
+- Completely rewrote the "addItem" step UI:
+  - DayPicker calendar at the top
+  - "Menu Items (7 days)" collapsible section showing entries grouped by date
+  - Each day is expandable/collapsible with item count badge
+  - "All Items" collapsible section with a "Create Item" button
+  - `AddItemDialog` integration with `onCreated` callback
+- Removed unused `dateMenuEntries` variable (replaced by grouped view)
+
+**Frontend changes** (`frontend/src/components/add-item-dialog.tsx`):
+- Added `onCreated?: (item: MenuItemResult) => void` prop to `AddItemDialogProps`
+- Passed `onCreated` prop through to `useAddItemForm` hook
+
+**Frontend changes** (`frontend/src/hooks/use-add-item-form.ts`):
+- Added `onCreated?: (item: MenuItemResult) => void` parameter
+- Updated `onSubmit` handler to call `onCreated` callback after item is successfully created
+
+**Files modified**:
+- `frontend/src/components/orders/add-manual-order-dialog.tsx` - Reorganized item selection UI
+- `frontend/src/components/add-item-dialog.tsx` - Added onCreated callback prop
+- `frontend/src/hooks/use-add-item-form.ts` - Added onCreated callback support
+
+**Next task**: Phase 3, Task 4 - Replace trash with QuantityStepper

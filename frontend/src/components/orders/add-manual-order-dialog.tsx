@@ -8,7 +8,7 @@ import {
   DialogTrigger,
 } from "../ui/dialog";
 import { Button } from "../ui/button";
-import { Plus, Trash, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Trash, X } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useTRPC, type RouterOutputs } from "@/trpc";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -19,7 +19,13 @@ import { formatCents, toLocalDateString } from "@/lib/utils";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/style.css";
 import { Checkbox } from "../ui/checkbox";
-import { getWeekDates, type MenuEntry, type MenuItem } from "../customer-menu-view";
+import {
+  formatDate,
+  getWeekDates,
+  type MenuEntry,
+  type MenuItem,
+} from "../customer-menu-view";
+import { AddItemDialog } from "../add-item-dialog";
 
 type Order = RouterOutputs["orders"]["getOrders"][number];
 
@@ -130,6 +136,9 @@ function AddManualOrderDialogContent({
     Record<string, string[]>
   >({});
   const [itemQuantity, setItemQuantity] = useState(1);
+  const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({});
+  const [allItemsExpanded, setAllItemsExpanded] = useState(false);
+  const [addItemDialogOpen, setAddItemDialogOpen] = useState(false);
 
   // Queries
   const usersQuery = useQuery(
@@ -183,12 +192,23 @@ function AddManualOrderDialogContent({
     return items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
   }, [items]);
 
-  // Get menu entries for selected date
-  const dateMenuEntries = useMemo(() => {
-    if (!menuEntriesQuery.data || !selectedDate) return [];
-    const selectedDateStr = toLocalDateString(selectedDate);
-    return menuEntriesQuery.data.filter((e) => e.date === selectedDateStr);
-  }, [menuEntriesQuery.data, selectedDate]);
+  // Get next 7 days' dates for the grouped view
+  const next7Days = useMemo(() => getWeekDates(new Date(), 7), []);
+
+  // Group menu entries by date for the next 7 days
+  const menuEntriesByDay = useMemo(() => {
+    if (!menuEntriesQuery.data) return new Map<string, MenuEntry[]>();
+    const grouped = new Map<string, MenuEntry[]>();
+    for (const date of next7Days) {
+      grouped.set(date, []);
+    }
+    for (const entry of menuEntriesQuery.data) {
+      if (next7Days.includes(entry.date)) {
+        grouped.get(entry.date)!.push(entry);
+      }
+    }
+    return grouped;
+  }, [menuEntriesQuery.data, next7Days]);
 
   // Calculate item price with modifiers
   const calculateItemPrice = (menuItem: MenuItem, selectedOptions: string[]) => {
@@ -253,6 +273,83 @@ function AddManualOrderDialogContent({
   // Remove item from order
   const removeItem = (index: number) => {
     setItems(items.filter((_, i) => i !== index));
+  };
+
+  // Handle when a new menu item is created via AddItemDialog
+  const handleNewItemCreated = async (newItem: MenuItem) => {
+    // Create a custom menu entry for today's date
+    const todayStr = toLocalDateString(new Date());
+    try {
+      const entry = await createCustomEntryMutation.mutateAsync({
+        date: todayStr,
+        menuItemId: newItem.id,
+      });
+      // Auto-select this entry for modifier configuration
+      setSelectedDate(new Date());
+      setSelectedMenuEntry({
+        id: entry.id,
+        date: entry.date,
+        sortOrder: entry.sortOrder,
+        isCustom: entry.isCustom,
+        menuItemId: newItem.id,
+        menuItem: entry.menuItem,
+      });
+      // Initialize modifier selections
+      const initialSelections: Record<string, string[]> = {};
+      for (const mg of entry.menuItem.modifierGroups) {
+        initialSelections[mg.modifierGroup.id] = [];
+      }
+      setModifierSelections(initialSelections);
+      // Invalidate menu entries query to refresh the list
+      queryClient.invalidateQueries({
+        queryKey: trpc.menu.getByDateRange.queryKey(),
+      });
+    } catch {
+      toast.error("Failed to create menu entry for new item", {
+        position: "bottom-center",
+      });
+    }
+  };
+
+  // Handle selecting an entry from the grouped list
+  const handleSelectEntry = (entry: MenuEntry) => {
+    setSelectedDate(new Date(entry.date + "T00:00:00"));
+    setSelectedMenuEntry(entry);
+    // Initialize modifier selections
+    const initialSelections: Record<string, string[]> = {};
+    for (const mg of entry.menuItem.modifierGroups) {
+      initialSelections[mg.modifierGroup.id] = [];
+    }
+    setModifierSelections(initialSelections);
+  };
+
+  // Handle creating a custom entry from All Items section
+  const handleSelectMenuItem = async (item: MenuItem) => {
+    const todayStr = toLocalDateString(new Date());
+    try {
+      const entry = await createCustomEntryMutation.mutateAsync({
+        date: todayStr,
+        menuItemId: item.id,
+      });
+      setSelectedDate(new Date());
+      setSelectedMenuEntry({
+        id: entry.id,
+        date: entry.date,
+        sortOrder: entry.sortOrder,
+        isCustom: entry.isCustom,
+        menuItemId: item.id,
+        menuItem: entry.menuItem,
+      });
+      const initialSelections: Record<string, string[]> = {};
+      for (const mg of entry.menuItem.modifierGroups) {
+        initialSelections[mg.modifierGroup.id] = [];
+      }
+      setModifierSelections(initialSelections);
+    } catch {
+      toast.error("Failed to create custom entry", {
+        position: "bottom-center",
+      });
+    }
   };
 
   // Submit order
@@ -363,101 +460,142 @@ function AddManualOrderDialogContent({
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Date selection */}
-          <div>
-            <Label>Date</Label>
-            <div className="flex justify-center border rounded-lg p-2">
-              <DayPicker
-                mode="single"
-                selected={selectedDate}
-                onSelect={setSelectedDate}
-                className="rounded-lg"
-              />
-            </div>
-          </div>
-
-          {/* Menu items for date */}
+          {/* Item selection - only shown when no menu entry is selected */}
           {!selectedMenuEntry && (
             <div className="space-y-2">
-              <Label>Select Item</Label>
-              <div className="max-h-40 overflow-y-auto border rounded-md">
-                {dateMenuEntries.length === 0 && (
-                  <div className="p-4 text-center text-muted-foreground">
-                    No items on menu for this date
-                  </div>
-                )}
-                {dateMenuEntries.map((entry) => (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    className="w-full text-left p-3 hover:bg-muted border-b last:border-b-0"
-                    onClick={() => {
-                      setSelectedMenuEntry(entry);
-                      // Initialize modifier selections
-                      const initialSelections: Record<string, string[]> = {};
-                      for (const mg of entry.menuItem.modifierGroups) {
-                        initialSelections[mg.modifierGroup.id] = [];
-                      }
-                      setModifierSelections(initialSelections);
-                    }}
-                  >
-                    <div className="flex justify-between">
-                      <span className="font-medium">{entry.menuItem.name}</span>
-                      <span className="text-muted-foreground">
-                        {formatCents(entry.menuItem.basePrice)}
-                      </span>
-                    </div>
-                  </button>
-                ))}
+              {/* DayPicker Calendar */}
+              <div className="flex justify-center border rounded-lg p-2">
+                <DayPicker
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={setSelectedDate}
+                  className="rounded-lg"
+                />
               </div>
 
-              {/* Or create custom entry from any menu item */}
-              <div className="pt-4 border-t mt-4">
-                <Label>Or select any menu item (custom entry)</Label>
-                <div className="max-h-40 overflow-y-auto border rounded-md mt-2">
-                  {menuItemsQuery.data?.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className="w-full text-left p-3 hover:bg-muted border-b last:border-b-0"
-                      onClick={async () => {
-                        // Create custom menu entry
-                        if (!selectedDate) return;
-                        try {
-                          const entry = await createCustomEntryMutation.mutateAsync({
-                            date: toLocalDateString(selectedDate),
-                            menuItemId: item.id,
-                          });
-                          setSelectedMenuEntry({
-                            id: entry.id,
-                            date: entry.date,
-                            sortOrder: entry.sortOrder,
-                            isCustom: entry.isCustom,
-                            menuItemId: item.id,
-                            menuItem: entry.menuItem,
-                          });
-                          const initialSelections: Record<string, string[]> = {};
-                          for (const mg of entry.menuItem.modifierGroups) {
-                            initialSelections[mg.modifierGroup.id] = [];
+              {/* Menu Items grouped by day (next 7 days) */}
+              <div className="border rounded-md">
+                <div className="p-3 bg-muted font-medium border-b">
+                  Menu Items (7 days)
+                </div>
+                <div className="max-h-48 overflow-y-auto">
+                  {next7Days.map((date) => {
+                    const entries = menuEntriesByDay.get(date) ?? [];
+                    const isExpanded = expandedDays[date] ?? false;
+                    return (
+                      <div key={date} className="border-b last:border-b-0">
+                        <button
+                          type="button"
+                          className="w-full text-left p-3 hover:bg-muted flex items-center gap-2"
+                          onClick={() =>
+                            setExpandedDays((prev) => ({
+                              ...prev,
+                              [date]: !prev[date],
+                            }))
                           }
-                          setModifierSelections(initialSelections);
-                        } catch {
-                          toast.error("Failed to create custom entry", {
-                            position: "bottom-center",
-                          });
-                        }
-                      }}
-                    >
-                      <div className="flex justify-between">
+                        >
+                          {isExpanded ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                          <span className="font-medium">{formatDate(date)}</span>
+                          <span className="text-muted-foreground text-sm ml-auto">
+                            {entries.length} item{entries.length !== 1 ? "s" : ""}
+                          </span>
+                        </button>
+                        {isExpanded && (
+                          <div className="pl-9 pb-2">
+                            {entries.length === 0 ? (
+                              <div className="text-sm text-muted-foreground py-1">
+                                No items scheduled
+                              </div>
+                            ) : (
+                              entries.map((entry) => (
+                                <button
+                                  key={entry.id}
+                                  type="button"
+                                  className="w-full text-left py-1 px-2 hover:bg-muted rounded text-sm flex justify-between items-center"
+                                  onClick={() => handleSelectEntry(entry)}
+                                >
+                                  <span>{entry.menuItem.name}</span>
+                                  <span className="text-muted-foreground">
+                                    {formatCents(entry.menuItem.basePrice)}
+                                  </span>
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* All Items section */}
+              <div className="border rounded-md">
+                <div className="p-3 bg-muted border-b flex items-center justify-between">
+                  <button
+                    type="button"
+                    className="flex items-center gap-2 font-medium"
+                    onClick={() => setAllItemsExpanded(!allItemsExpanded)}
+                  >
+                    {allItemsExpanded ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                    All Items
+                  </button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAddItemDialogOpen(true)}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Create Item
+                  </Button>
+                </div>
+                {allItemsExpanded && (
+                  <div className="max-h-48 overflow-y-auto">
+                    {menuItemsQuery.isLoading && (
+                      <div className="p-4 text-center text-muted-foreground">
+                        Loading...
+                      </div>
+                    )}
+                    {menuItemsQuery.data?.length === 0 && (
+                      <div className="p-4 text-center text-muted-foreground">
+                        No menu items available
+                      </div>
+                    )}
+                    {menuItemsQuery.data?.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className="w-full text-left p-3 hover:bg-muted border-b last:border-b-0 flex justify-between items-center"
+                        onClick={() => handleSelectMenuItem(item)}
+                        disabled={createCustomEntryMutation.isPending}
+                      >
                         <span className="font-medium">{item.name}</span>
                         <span className="text-muted-foreground">
                           {formatCents(item.basePrice)}
                         </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
+
+              {/* AddItemDialog for creating new items */}
+              <AddItemDialog
+                open={addItemDialogOpen}
+                onOpenChange={setAddItemDialogOpen}
+                onCreated={(newItem) => {
+                  setAddItemDialogOpen(false);
+                  handleNewItemCreated(newItem);
+                }}
+              />
             </div>
           )}
 

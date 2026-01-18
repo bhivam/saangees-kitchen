@@ -26,12 +26,14 @@ interface AddItemDialogProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   editData?: MenuItemResult;
+  onCreated?: (item: MenuItemResult) => void;
 }
 
 export function AddItemDialog({
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
   editData,
+  onCreated,
 }: AddItemDialogProps = {}) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
 
@@ -41,7 +43,7 @@ export function AddItemDialog({
     ? controlledOnOpenChange ?? (() => {})
     : setUncontrolledOpen;
 
-  const addItemForm = useAddItemForm({ setOpen, editData });
+  const addItemForm = useAddItemForm({ setOpen, editData, onCreated });
 
   const { form } = addItemForm;
 

@@ -46,9 +46,11 @@ export type MenuItemResult = {
 export function useAddItemForm({
   setOpen,
   editData,
+  onCreated,
 }: {
   setOpen?: (open: boolean) => void;
   editData?: MenuItemResult;
+  onCreated?: (item: MenuItemResult) => void;
 }) {
   const isEditMode = !!editData;
   const queryClient = useQueryClient();
@@ -174,10 +176,13 @@ export function useAddItemForm({
           modifierGroups,
         });
       } else {
-        await createMenuItemMutation.mutateAsync({
+        const result = await createMenuItemMutation.mutateAsync({
           ...itemData,
           modifierGroups,
         });
+        if (result?.[0]) {
+          onCreated?.(result[0]);
+        }
       }
       formApi.reset();
       setOpen?.(false);
