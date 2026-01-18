@@ -15,7 +15,7 @@ export const menuItemsRouter = createTRPCRouter({
         modifierGroups: z
           .array(
             z.object({
-              groupId: z.string().uuid(),
+              groupId: z.uuid(),
               sortOrder: z.number().int().nonnegative(),
             }),
           )
@@ -63,14 +63,14 @@ export const menuItemsRouter = createTRPCRouter({
   updateMenuItem: adminProcedure
     .input(
       z.object({
-        id: z.string().uuid(),
+        id: z.uuid(),
         name: z.string().min(1),
         description: z.string().min(1),
         basePrice: z.number().int().positive(),
         modifierGroups: z
           .array(
             z.object({
-              groupId: z.string().uuid(),
+              groupId: z.uuid(),
               sortOrder: z.number().int().nonnegative(),
             }),
           )
@@ -143,7 +143,7 @@ export const menuItemsRouter = createTRPCRouter({
   }),
 
   deleteMenuItem: adminProcedure
-    .input(z.object({ id: z.string().uuid() }))
+    .input(z.object({ id: z.uuid() }))
     .mutation(async ({ input }) => {
       const [deleted] = await db
         .update(menuItems)

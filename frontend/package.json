@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "eslint .",
+    "lint": "eslint_d .",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -46,10 +46,13 @@
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react-swc": "^4.0.0",
-    "eslint": "^9.33.0",
+    "eslint": ">=9.33.0",
+    "eslint-config-xo": "^0.49.0",
+    "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.3.0",
+    "jiti": "^2.6.1",
     "tw-animate-css": "^1.3.8",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.39.1",

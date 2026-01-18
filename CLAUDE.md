@@ -173,3 +173,6 @@ Schema defined in `backend/src/db/schema.ts`. Better Auth tables auto-generated 
 
 ## Testing
 No test framework currently configured.
+
+## Linting
+In both repositories you can use `eslint .` to do typechecks and enforce linting rules. Make sure to lint before commiting any changes.
