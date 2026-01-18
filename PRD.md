@@ -266,7 +266,7 @@ if (entryDate < today) {
 3. ~~Fix `updateManualOrder` to preserve items and validate due dates~~ ✅
 
 ### Phase 2: Table Enhancements
-1. Add sorting state and logic
+1. ~~Add sorting state and logic~~ ✅
 2. Add pagination state and logic
 3. Add view-only button for customer orders
 

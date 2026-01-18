@@ -10,7 +10,7 @@ import {
   TableRow,
 } from "../ui/table";
 import { Button } from "../ui/button";
-import { Edit, Trash } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Edit, Trash } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,9 +28,14 @@ import type { RouterOutputs } from "@/trpc";
 
 type Order = RouterOutputs["orders"]["getOrders"][number];
 
+type SortField = "user" | "date" | "total";
+type SortDirection = "asc" | "desc";
+
 export function ManualEntryTable({ search }: { search: string }) {
   const [editOrder, setEditOrder] = useState<Order | null>(null);
   const [deleteOrder, setDeleteOrder] = useState<Order | null>(null);
+  const [sortField, setSortField] = useState<SortField>("date");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -67,12 +72,49 @@ export function ManualEntryTable({ search }: { search: string }) {
     );
   }, [ordersQuery.data, search]);
 
+  const sortedOrders = useMemo(() => {
+    return [...filteredOrders].sort((a, b) => {
+      let cmp = 0;
+      switch (sortField) {
+        case "user":
+          cmp = a.user.name.localeCompare(b.user.name);
+          break;
+        case "date":
+          cmp =
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+          break;
+        case "total":
+          cmp = (a.total ?? 0) - (b.total ?? 0);
+          break;
+      }
+      return sortDirection === "asc" ? cmp : -cmp;
+    });
+  }, [filteredOrders, sortField, sortDirection]);
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ArrowUpDown className="ml-1 h-4 w-4" />;
+    return sortDirection === "asc" ? (
+      <ArrowUp className="ml-1 h-4 w-4" />
+    ) : (
+      <ArrowDown className="ml-1 h-4 w-4" />
+    );
+  };
+
   if (ordersQuery.isLoading) return <div className="p-4">Loading...</div>;
 
   if (ordersQuery.isError || !ordersQuery.data)
     return <div className="p-4 text-red-500">Error loading orders</div>;
 
-  if (filteredOrders.length === 0) {
+  if (sortedOrders.length === 0) {
     return (
       <div className="p-4 text-muted-foreground">
         {search ? "No orders match your search" : "No orders yet"}
@@ -85,16 +127,40 @@ export function ManualEntryTable({ search }: { search: string }) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-1/5">User</TableHead>
-            <TableHead className="w-1/5">Date Submitted</TableHead>
-            <TableHead className="w-1/6">Total</TableHead>
+            <TableHead className="w-1/5">
+              <button
+                className="flex items-center hover:text-foreground"
+                onClick={() => handleSort("user")}
+              >
+                User
+                <SortIcon field="user" />
+              </button>
+            </TableHead>
+            <TableHead className="w-1/5">
+              <button
+                className="flex items-center hover:text-foreground"
+                onClick={() => handleSort("date")}
+              >
+                Date Submitted
+                <SortIcon field="date" />
+              </button>
+            </TableHead>
+            <TableHead className="w-1/6">
+              <button
+                className="flex items-center hover:text-foreground"
+                onClick={() => handleSort("total")}
+              >
+                Total
+                <SortIcon field="total" />
+              </button>
+            </TableHead>
             <TableHead className="w-1/6">Type</TableHead>
             <TableHead className="w-1/12" />
             <TableHead className="w-1/12" />
           </TableRow>
         </TableHeader>
         <TableBody>
-          {filteredOrders.map((order) => (
+          {sortedOrders.map((order) => (
             <TableRow key={order.id}>
               <TableCell>
                 <div className="flex flex-col">

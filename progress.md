@@ -50,3 +50,25 @@
 - `frontend/src/components/orders/add-manual-order-dialog.tsx` - Added `orderItemId` tracking
 
 **Next task**: Phase 2, Task 1 - Add sorting state and logic to manual-entry-table.tsx
+
+---
+
+### Phase 2: Table Enhancements - Task 1: Add sorting state and logic
+
+**Status**: ✅ Completed
+
+**What was done**:
+
+**Frontend changes** (`frontend/src/components/orders/manual-entry-table.tsx`):
+- Added sorting state with `sortField` (user | date | total) and `sortDirection` (asc | desc)
+- Default sort is by date descending (newest first)
+- Added `sortedOrders` useMemo that sorts `filteredOrders` based on current sort state
+- Added `handleSort` function that toggles direction when clicking same field, or sets new field with asc direction
+- Added `SortIcon` component that displays ArrowUpDown (unsorted), ArrowUp (asc), or ArrowDown (desc)
+- Made User, Date Submitted, and Total column headers clickable with sort indicators
+- Imported ArrowDown, ArrowUp, ArrowUpDown icons from lucide-react
+
+**Files modified**:
+- `frontend/src/components/orders/manual-entry-table.tsx` - Added sorting functionality
+
+**Next task**: Phase 2, Task 2 - Add pagination state and logic to manual-entry-table.tsx
