@@ -33,6 +33,7 @@ type Order = RouterOutputs["orders"]["getOrders"][number];
 interface OrderItem {
   orderItemId?: string; // Existing order item ID for updates
   menuEntryId: string;
+  menuEntryDate: string; // Date of the menu entry (YYYY-MM-DD format)
   menuItemName: string;
   quantity: number;
   modifierOptionIds: string[];
@@ -115,6 +116,7 @@ function AddManualOrderDialogContent({
     return editData.items.map((item) => ({
       orderItemId: item.id, // Preserve existing item ID for proper updates
       menuEntryId: item.menuEntryId,
+      menuEntryDate: item.menuEntry.date, // Store the menu entry date for due date validation
       menuItemName: item.menuEntry.menuItem.name,
       quantity: item.quantity,
       modifierOptionIds: item.modifiers.map((m) => m.modifierOptionId),
@@ -253,6 +255,7 @@ function AddManualOrderDialogContent({
       ...items,
       {
         menuEntryId: selectedMenuEntry.id,
+        menuEntryDate: selectedMenuEntry.date, // Store the date for due date validation
         menuItemName: selectedMenuEntry.menuItem.name,
         quantity: itemQuantity,
         modifierOptionIds: allSelectedOptions,
@@ -279,6 +282,14 @@ function AddManualOrderDialogContent({
   // Update item quantity
   const updateItemQuantity = (index: number, newQuantity: number) => {
     setItems(items.map((item, i) => (i === index ? { ...item, quantity: newQuantity } : item)));
+  };
+
+  // Check if an item's due date has passed (client-side validation)
+  const isItemPastDue = (item: OrderItem) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const entryDate = new Date(item.menuEntryDate + "T00:00:00");
+    return entryDate < today;
   };
 
   // Handle when a new menu item is created via AddItemDialog
@@ -806,41 +817,52 @@ function AddManualOrderDialogContent({
             </div>
           ) : (
             <div className="border rounded-md divide-y">
-              {items.map((item, index) => (
-                <div key={index} className="p-3 flex justify-between items-start">
-                  <div className="flex-1">
-                    <div className="font-medium">{item.menuItemName}</div>
-                    {item.modifierNames.length > 0 && (
-                      <div className="text-sm text-muted-foreground">
-                        {item.modifierNames.join(", ")}
-                      </div>
-                    )}
+              {items.map((item, index) => {
+                const pastDue = isItemPastDue(item);
+                return (
+                  <div
+                    key={index}
+                    className={`p-3 flex justify-between items-start ${pastDue ? "opacity-60" : ""}`}
+                  >
+                    <div className="flex-1">
+                      <div className="font-medium">{item.menuItemName}</div>
+                      {item.modifierNames.length > 0 && (
+                        <div className="text-sm text-muted-foreground">
+                          {item.modifierNames.join(", ")}
+                        </div>
+                      )}
+                      {pastDue && !viewOnly && (
+                        <div className="text-xs text-amber-600 mt-1">
+                          Past due - locked
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-medium">
+                        {formatCents(item.unitPrice * item.quantity)}
+                      </span>
+                      {viewOnly ? (
+                        <span className="text-muted-foreground">×{item.quantity}</span>
+                      ) : (
+                        <QuantityStepper
+                          value={item.quantity}
+                          onReduce={() => {
+                            if (item.quantity <= 1) {
+                              removeItem(index);
+                            } else {
+                              updateItemQuantity(index, item.quantity - 1);
+                            }
+                          }}
+                          onIncrease={() => updateItemQuantity(index, item.quantity + 1)}
+                          reduceIcon={item.quantity <= 1 ? <Trash2 className="size-4" /> : undefined}
+                          reduceDisabled={pastDue}
+                          increaseDisabled={pastDue}
+                        />
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-medium">
-                      {formatCents(item.unitPrice * item.quantity)}
-                    </span>
-                    {viewOnly ? (
-                      <span className="text-muted-foreground">×{item.quantity}</span>
-                    ) : (
-                      <QuantityStepper
-                        value={item.quantity}
-                        onReduce={() => {
-                          if (item.quantity <= 1) {
-                            removeItem(index);
-                          } else {
-                            updateItemQuantity(index, item.quantity - 1);
-                          }
-                        }}
-                        onIncrease={() => updateItemQuantity(index, item.quantity + 1)}
-                        reduceIcon={item.quantity <= 1 ? <Trash2 className="size-4" /> : undefined}
-                        reduceDisabled={false}
-                        increaseDisabled={false}
-                      />
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

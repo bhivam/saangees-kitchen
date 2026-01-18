@@ -225,3 +225,30 @@
 **Note**: Task 5 (`viewOnly` prop support) was already implemented as part of Phase 2, Task 3, so it's marked as complete in the PRD.
 
 **Next task**: Phase 3, Task 6 - Add per-item due date validation
+
+---
+
+### Phase 3: Dialog Enhancements - Task 6: Add per-item due date validation
+
+**Status**: ✅ Completed
+
+**What was done**:
+
+**Frontend changes** (`frontend/src/components/orders/add-manual-order-dialog.tsx`):
+- Added `menuEntryDate` field to the `OrderItem` interface to store the menu entry date (YYYY-MM-DD format)
+- Updated the edit data loading to populate `menuEntryDate` from `item.menuEntry.date`
+- Updated `addItemToOrder` function to include `menuEntryDate` from `selectedMenuEntry.date` when adding new items
+- Added `isItemPastDue` helper function that compares the item's menu entry date with today's date:
+  - Returns `true` if the entry date is before today
+  - Uses local date comparison to avoid timezone issues
+- Updated the items list rendering to use `isItemPastDue`:
+  - Past-due items display with reduced opacity (`opacity-60`)
+  - Past-due items show "Past due - locked" text in amber color (only when not in view-only mode)
+  - QuantityStepper is disabled for past-due items (`reduceDisabled` and `increaseDisabled` set to `true`)
+
+**Note**: Server-side due date validation was already implemented in Phase 1, Task 3. This task completes the client-side validation to provide immediate feedback to users.
+
+**Files modified**:
+- `frontend/src/components/orders/add-manual-order-dialog.tsx` - Added client-side per-item due date validation
+
+**Next task**: Phase 3, Task 7 - Track `orderItemId` for proper updates

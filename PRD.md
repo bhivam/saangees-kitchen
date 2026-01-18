@@ -276,7 +276,7 @@ if (entryDate < today) {
 3. ~~Add "Create Item" button with callback~~ ✅
 4. ~~Replace trash with QuantityStepper~~ ✅
 5. ~~Add `viewOnly` prop support~~ ✅ (already implemented in Phase 2, Task 3)
-6. Add per-item due date validation
+6. ~~Add per-item due date validation~~ ✅
 7. Track `orderItemId` for proper updates
 
 ---
