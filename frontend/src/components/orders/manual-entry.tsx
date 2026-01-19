@@ -18,7 +18,7 @@ export function ManualEntry() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <AddManualOrderDialog />
+        <AddManualOrderDialog dataAndMode={{ data: null, mode: "create" }} />
       </div>
 
       <ManualEntryTable search={search} />

@@ -27,42 +27,52 @@ import {
   type MenuItem,
 } from "../customer-menu-view";
 import { AddItemDialog } from "../add-item-dialog";
+import type { MenuItemResult } from "@/hooks/use-add-item-form";
 
 type Order = RouterOutputs["orders"]["getOrders"][number];
 
-interface OrderItem {
-  orderItemId?: string; // Existing order item ID for updates
+type OrderItem = {
+  orderItemId?: string;
   menuEntryId: string;
-  menuEntryDate: string; // Date of the menu entry (YYYY-MM-DD format)
+  menuEntryDate: string;
   menuItemName: string;
   quantity: number;
   modifierOptionIds: string[];
   modifierNames: string[];
-  unitPrice: number; // Price per item including modifiers
-}
+  unitPrice: number;
+};
 
-interface AddManualOrderDialogProps {
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
-  editData?: Order;
-  viewOnly?: boolean;
-}
+// TODO should be passing data and modes
 
 export function AddManualOrderDialog({
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
-  editData,
-  viewOnly = false,
-}: AddManualOrderDialogProps = {}) {
+  dataAndMode,
+}: {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  dataAndMode:
+    | {
+        data: null;
+        mode: "create";
+      }
+    | {
+        data: Order | null;
+        mode: "edit";
+      }
+    | {
+        data: Order | null;
+        mode: "view";
+      };
+}) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
 
   const isControlled = controlledOpen !== undefined;
+
   const open = isControlled ? controlledOpen : uncontrolledOpen;
   const setOpen = isControlled
-    ? controlledOnOpenChange ?? (() => {})
+    ? (controlledOnOpenChange ?? (() => {}))
     : setUncontrolledOpen;
-
-  const isEditMode = !!editData;
 
   return (
     <Dialog
@@ -82,9 +92,7 @@ export function AddManualOrderDialog({
       {open && (
         <AddManualOrderDialogContent
           setOpen={setOpen}
-          isEditMode={isEditMode}
-          editData={editData}
-          viewOnly={viewOnly}
+          dataAndMode={dataAndMode}
         />
       )}
     </Dialog>
@@ -93,30 +101,36 @@ export function AddManualOrderDialog({
 
 function AddManualOrderDialogContent({
   setOpen,
-  isEditMode,
-  editData,
-  viewOnly,
+  dataAndMode,
 }: {
   setOpen: (open: boolean) => void;
-  isEditMode: boolean;
-  editData?: Order;
-  viewOnly: boolean;
+  dataAndMode:
+    | {
+        data: null;
+        mode: "create";
+      }
+    | {
+        data: Order | null;
+        mode: "edit";
+      }
+    | {
+        data: Order | null;
+        mode: "view";
+      };
 }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
 
-  // State
   const [selectedUserId, setSelectedUserId] = useState<string | null>(
-    editData?.userId ?? null,
+    dataAndMode.data?.userId ?? null,
   );
   const [userSearch, setUserSearch] = useState("");
   const [items, setItems] = useState<OrderItem[]>(() => {
-    if (!editData) return [];
-    // Convert edit data items to our format, including orderItemId for updates
-    return editData.items.map((item) => ({
-      orderItemId: item.id, // Preserve existing item ID for proper updates
+    if (!dataAndMode.data) return [];
+    return dataAndMode.data.items.map((item) => ({
+      orderItemId: item.id,
       menuEntryId: item.menuEntryId,
-      menuEntryDate: item.menuEntry.date, // Store the menu entry date for due date validation
+      menuEntryDate: item.menuEntry.date,
       menuItemName: item.menuEntry.menuItem.name,
       quantity: item.quantity,
       modifierOptionIds: item.modifiers.map((m) => m.modifierOptionId),
@@ -127,7 +141,7 @@ function AddManualOrderDialogContent({
     }));
   });
   const [step, setStep] = useState<"user" | "items" | "addItem">(
-    editData ? "items" : "user",
+    dataAndMode.mode === "create" ? "user" : "items",
   );
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
     () => new Date(),
@@ -143,13 +157,11 @@ function AddManualOrderDialogContent({
   const [allItemsExpanded, setAllItemsExpanded] = useState(false);
   const [addItemDialogOpen, setAddItemDialogOpen] = useState(false);
 
-  // Queries
   const usersQuery = useQuery(
     trpc.users.searchUsers.queryOptions({ query: userSearch, limit: 20 }),
   );
   const selectedUser = usersQuery.data?.find((u) => u.id === selectedUserId);
 
-  // Get menu entries for the next 30 days
   const dates = useMemo(() => getWeekDates(new Date(), 30), []);
   const menuEntriesQuery = useQuery(
     trpc.menu.getByDateRange.queryOptions({ dates, includeCustom: true }),
@@ -157,7 +169,6 @@ function AddManualOrderDialogContent({
 
   const menuItemsQuery = useQuery(trpc.menuItems.getMenuItems.queryOptions());
 
-  // Mutations
   const createOrderMutation = useMutation(
     trpc.orders.createManualOrder.mutationOptions({
       onSettled: (result, error) => {
@@ -165,7 +176,9 @@ function AddManualOrderDialogContent({
           toast.error("Failed to create order.", { position: "bottom-center" });
           return;
         }
-        queryClient.invalidateQueries({ queryKey: trpc.orders.getOrders.queryKey() });
+        queryClient.invalidateQueries({
+          queryKey: trpc.orders.getOrders.queryKey(),
+        });
         toast.success("Order created.", { position: "bottom-center" });
         setOpen(false);
       },
@@ -179,7 +192,9 @@ function AddManualOrderDialogContent({
           toast.error("Failed to update order.", { position: "bottom-center" });
           return;
         }
-        queryClient.invalidateQueries({ queryKey: trpc.orders.getOrders.queryKey() });
+        queryClient.invalidateQueries({
+          queryKey: trpc.orders.getOrders.queryKey(),
+        });
         toast.success("Order updated.", { position: "bottom-center" });
         setOpen(false);
       },
@@ -214,7 +229,10 @@ function AddManualOrderDialogContent({
   }, [menuEntriesQuery.data, next7Days]);
 
   // Calculate item price with modifiers
-  const calculateItemPrice = (menuItem: MenuItem, selectedOptions: string[]) => {
+  const calculateItemPrice = (
+    menuItem: MenuItem,
+    selectedOptions: string[],
+  ) => {
     let price = menuItem.basePrice;
     for (const optionId of selectedOptions) {
       for (const mg of menuItem.modifierGroups) {
@@ -281,7 +299,11 @@ function AddManualOrderDialogContent({
 
   // Update item quantity
   const updateItemQuantity = (index: number, newQuantity: number) => {
-    setItems(items.map((item, i) => (i === index ? { ...item, quantity: newQuantity } : item)));
+    setItems(
+      items.map((item, i) =>
+        i === index ? { ...item, quantity: newQuantity } : item,
+      ),
+    );
   };
 
   // Check if an item's due date has passed (client-side validation)
@@ -292,8 +314,7 @@ function AddManualOrderDialogContent({
     return entryDate < today;
   };
 
-  // Handle when a new menu item is created via AddItemDialog
-  const handleNewItemCreated = async (newItem: MenuItem) => {
+  const handleNewItemCreated = async (newItem: MenuItemResult) => {
     // Create a custom menu entry for today's date
     const todayStr = toLocalDateString(new Date());
     try {
@@ -342,10 +363,9 @@ function AddManualOrderDialogContent({
 
   // Handle creating a custom entry from All Items section
   const handleSelectMenuItem = async (item: MenuItem) => {
-    const todayStr = toLocalDateString(new Date());
     try {
       const entry = await createCustomEntryMutation.mutateAsync({
-        date: todayStr,
+        date: toLocalDateString(new Date()),
         menuItemId: item.id,
       });
       setSelectedDate(new Date());
@@ -373,8 +393,7 @@ function AddManualOrderDialogContent({
   const handleSubmit = () => {
     if (!selectedUserId || items.length === 0) return;
 
-    if (isEditMode && editData) {
-      // Include orderItemId for existing items to preserve baggedAt timestamps
+    if (dataAndMode.mode === "edit" && dataAndMode.data) {
       const updateItems = items.map((item) => ({
         orderItemId: item.orderItemId,
         menuEntryId: item.menuEntryId,
@@ -382,7 +401,7 @@ function AddManualOrderDialogContent({
         modifierOptionIds: item.modifierOptionIds,
       }));
       updateOrderMutation.mutate({
-        orderId: editData.id,
+        orderId: dataAndMode.data.id,
         items: updateItems,
       });
     } else {
@@ -454,10 +473,7 @@ function AddManualOrderDialogContent({
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancel
           </Button>
-          <Button
-            disabled={!selectedUserId}
-            onClick={() => setStep("items")}
-          >
+          <Button disabled={!selectedUserId} onClick={() => setStep("items")}>
             Continue
           </Button>
         </DialogFooter>
@@ -471,9 +487,7 @@ function AddManualOrderDialogContent({
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add Item</DialogTitle>
-          <DialogDescription>
-            Select an item from the menu
-          </DialogDescription>
+          <DialogDescription>Select an item from the menu</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -516,9 +530,12 @@ function AddManualOrderDialogContent({
                           ) : (
                             <ChevronRight className="h-4 w-4" />
                           )}
-                          <span className="font-medium">{formatDate(date)}</span>
+                          <span className="font-medium">
+                            {formatDate(date)}
+                          </span>
                           <span className="text-muted-foreground text-sm ml-auto">
-                            {entries.length} item{entries.length !== 1 ? "s" : ""}
+                            {entries.length} item
+                            {entries.length !== 1 ? "s" : ""}
                           </span>
                         </button>
                         {isExpanded && (
@@ -715,7 +732,9 @@ function AddManualOrderDialogContent({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setItemQuantity(Math.max(1, itemQuantity - 1))}
+                    onClick={() =>
+                      setItemQuantity(Math.max(1, itemQuantity - 1))
+                    }
                     disabled={itemQuantity <= 1}
                   >
                     -
@@ -751,10 +770,7 @@ function AddManualOrderDialogContent({
           <Button variant="outline" onClick={() => setStep("items")}>
             Cancel
           </Button>
-          <Button
-            disabled={!selectedMenuEntry}
-            onClick={addItemToOrder}
-          >
+          <Button disabled={!selectedMenuEntry} onClick={addItemToOrder}>
             Add to Order
           </Button>
         </DialogFooter>
@@ -767,20 +783,24 @@ function AddManualOrderDialogContent({
     <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
       <DialogHeader>
         <DialogTitle>
-          {viewOnly ? "View Order" : isEditMode ? "Edit Order" : "Create Manual Order"}
+          {dataAndMode.mode === "view"
+            ? "View Order"
+            : dataAndMode.mode === "edit"
+              ? "Edit Order"
+              : "Create Manual Order"}
         </DialogTitle>
         <DialogDescription>
           {selectedUser
             ? `Order for ${selectedUser.name}`
-            : editData
-              ? `Order for ${editData.user.name}`
+            : dataAndMode.data
+              ? `Order for ${dataAndMode.data.user.name}`
               : "Configure the order items"}
         </DialogDescription>
       </DialogHeader>
 
       <div className="space-y-4">
         {/* User info */}
-        {selectedUser && !isEditMode && (
+        {selectedUser && dataAndMode.mode !== "edit" && (
           <div className="flex justify-between items-center p-3 bg-muted rounded-md">
             <div>
               <div className="font-medium">{selectedUser.name}</div>
@@ -800,7 +820,7 @@ function AddManualOrderDialogContent({
         <div className="space-y-2">
           <div className="flex justify-between items-center">
             <Label>Items</Label>
-            {!viewOnly && (
+            {dataAndMode.mode !== "view" && (
               <Button
                 variant="outline"
                 size="sm"
@@ -831,7 +851,7 @@ function AddManualOrderDialogContent({
                           {item.modifierNames.join(", ")}
                         </div>
                       )}
-                      {pastDue && !viewOnly && (
+                      {pastDue && dataAndMode.mode !== "view" && (
                         <div className="text-xs text-amber-600 mt-1">
                           Past due - locked
                         </div>
@@ -841,8 +861,10 @@ function AddManualOrderDialogContent({
                       <span className="font-medium">
                         {formatCents(item.unitPrice * item.quantity)}
                       </span>
-                      {viewOnly ? (
-                        <span className="text-muted-foreground">×{item.quantity}</span>
+                      {dataAndMode.mode === "view" ? (
+                        <span className="text-muted-foreground">
+                          ×{item.quantity}
+                        </span>
                       ) : (
                         <QuantityStepper
                           value={item.quantity}
@@ -853,8 +875,14 @@ function AddManualOrderDialogContent({
                               updateItemQuantity(index, item.quantity - 1);
                             }
                           }}
-                          onIncrease={() => updateItemQuantity(index, item.quantity + 1)}
-                          reduceIcon={item.quantity <= 1 ? <Trash2 className="size-4" /> : undefined}
+                          onIncrease={() =>
+                            updateItemQuantity(index, item.quantity + 1)
+                          }
+                          reduceIcon={
+                            item.quantity <= 1 ? (
+                              <Trash2 className="size-4" />
+                            ) : undefined
+                          }
                           reduceDisabled={pastDue}
                           increaseDisabled={pastDue}
                         />
@@ -877,7 +905,7 @@ function AddManualOrderDialogContent({
       </div>
 
       <DialogFooter>
-        {viewOnly ? (
+        {dataAndMode.mode === "view" ? (
           <Button onClick={() => setOpen(false)}>Close</Button>
         ) : (
           <>
@@ -894,10 +922,10 @@ function AddManualOrderDialogContent({
               onClick={handleSubmit}
             >
               {createOrderMutation.isPending || updateOrderMutation.isPending
-                ? isEditMode
+                ? dataAndMode.mode === "edit"
                   ? "Updating..."
                   : "Creating..."
-                : isEditMode
+                : dataAndMode.mode === "edit"
                   ? "Update Order"
                   : "Create Order"}
             </Button>
@@ -907,3 +935,4 @@ function AddManualOrderDialogContent({
     </DialogContent>
   );
 }
+

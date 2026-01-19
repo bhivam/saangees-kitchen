@@ -10,7 +10,14 @@ import {
   TableRow,
 } from "../ui/table";
 import { Button } from "../ui/button";
-import { ArrowDown, ArrowUp, ArrowUpDown, Edit, Eye, Trash } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Edit,
+  Eye,
+  Trash,
+} from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -137,6 +144,8 @@ export function ManualEntryTable({ search }: { search: string }) {
       return sortDirection === "asc" ? cmp : -cmp;
     });
   }, [filteredOrders, sortField, sortDirection]);
+
+  // TODO pagination is completely faked and client side, remove for now and add back in properly later
 
   // Pagination
   const totalPages = Math.ceil(sortedOrders.length / ITEMS_PER_PAGE);
@@ -324,13 +333,12 @@ export function ManualEntryTable({ search }: { search: string }) {
       <AddManualOrderDialog
         open={editOrder !== null}
         onOpenChange={(open: boolean) => !open && setEditOrder(null)}
-        editData={editOrder ?? undefined}
+        dataAndMode={{ data: editOrder, mode: "edit" }}
       />
       <AddManualOrderDialog
         open={viewOrder !== null}
         onOpenChange={(open: boolean) => !open && setViewOrder(null)}
-        editData={viewOrder ?? undefined}
-        viewOnly
+        dataAndMode={{ data: viewOrder, mode: "view" }}
       />
       <AlertDialog
         open={deleteOrder !== null}
@@ -362,3 +370,4 @@ export function ManualEntryTable({ search }: { search: string }) {
     </>
   );
 }
+

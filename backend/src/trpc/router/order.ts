@@ -28,9 +28,9 @@ export const ordersRouter = createTRPCRouter({
       z.object({
         items: z.array(
           z.object({
-            menuEntryId: z.string().uuid(),
+            menuEntryId: z.uuid(),
             quantity: z.number().int().positive(),
-            modifierOptionIds: z.array(z.string().uuid()),
+            modifierOptionIds: z.array(z.uuid()),
           }),
         ),
       }),
@@ -355,7 +355,8 @@ export const ordersRouter = createTRPCRouter({
         const existingSku = userData.itemsBySku.get(skuKey);
         if (existingSku) {
           existingSku.quantity += item.quantity;
-          existingSku.allBagged = existingSku.allBagged && item.baggedAt !== null;
+          existingSku.allBagged =
+            existingSku.allBagged && item.baggedAt !== null;
           existingSku.orderItemIds.push(item.id);
         } else {
           userData.itemsBySku.set(skuKey, {
@@ -483,7 +484,10 @@ export const ordersRouter = createTRPCRouter({
     // Check for duplicate names
     const nameCounts = new Map<string, number>();
     for (const order of allOrders) {
-      nameCounts.set(order.user.name, (nameCounts.get(order.user.name) || 0) + 1);
+      nameCounts.set(
+        order.user.name,
+        (nameCounts.get(order.user.name) || 0) + 1,
+      );
     }
 
     return allOrders.map((order) => {
@@ -514,7 +518,7 @@ export const ordersRouter = createTRPCRouter({
   updatePayment: adminProcedure
     .input(
       z.object({
-        orderId: z.string().uuid(),
+        orderId: z.uuid(),
         centsPaid: z.number().int().min(0),
       }),
     )
@@ -544,11 +548,15 @@ export const ordersRouter = createTRPCRouter({
         .set({ centsPaid: input.centsPaid, updatedAt: new Date() })
         .where(eq(orders.id, input.orderId));
 
-      return { success: true, orderId: input.orderId, centsPaid: input.centsPaid };
+      return {
+        success: true,
+        orderId: input.orderId,
+        centsPaid: input.centsPaid,
+      };
     }),
 
   markPaidInFull: adminProcedure
-    .input(z.object({ orderId: z.string().uuid() }))
+    .input(z.object({ orderId: z.uuid() }))
     .mutation(async ({ input }) => {
       const order = await db.query.orders.findFirst({
         where: eq(orders.id, input.orderId),
@@ -578,9 +586,9 @@ export const ordersRouter = createTRPCRouter({
         userId: z.string(),
         items: z.array(
           z.object({
-            menuEntryId: z.string().uuid(),
+            menuEntryId: z.uuid(),
             quantity: z.number().int().positive(),
-            modifierOptionIds: z.array(z.string().uuid()),
+            modifierOptionIds: z.array(z.uuid()),
           }),
         ),
       }),
@@ -698,13 +706,13 @@ export const ordersRouter = createTRPCRouter({
   updateManualOrder: adminProcedure
     .input(
       z.object({
-        orderId: z.string().uuid(),
+        orderId: z.uuid(),
         items: z.array(
           z.object({
-            orderItemId: z.string().uuid().optional(), // Existing item ID for updates
-            menuEntryId: z.string().uuid(),
+            orderItemId: z.uuid().optional(), // Existing item ID for updates
+            menuEntryId: z.uuid(),
             quantity: z.number().int().positive(),
-            modifierOptionIds: z.array(z.string().uuid()),
+            modifierOptionIds: z.array(z.uuid()),
           }),
         ),
       }),
@@ -795,7 +803,9 @@ export const ordersRouter = createTRPCRouter({
             const newModifierIds = [...item.modifierOptionIds].sort();
             if (
               existingModifierIds.length !== newModifierIds.length ||
-              !existingModifierIds.every((id, idx) => id === newModifierIds[idx])
+              !existingModifierIds.every(
+                (id, idx) => id === newModifierIds[idx],
+              )
             ) {
               throw new TRPCError({
                 code: "BAD_REQUEST",
@@ -837,7 +847,9 @@ export const ordersRouter = createTRPCRouter({
         for (const item of itemsToDelete) {
           const entryDate = normalizeDate(item.menuEntry.date);
           if (entryDate && today && entryDate < today) {
-            const entry = entryMap.get(item.menuEntryId) ?? { menuItem: { name: "Unknown item" } };
+            const entry = entryMap.get(item.menuEntryId) ?? {
+              menuItem: { name: "Unknown item" },
+            };
             throw new TRPCError({
               code: "BAD_REQUEST",
               message: `Cannot remove item "${entry.menuItem.name}" - due date has passed`,
@@ -926,7 +938,7 @@ export const ordersRouter = createTRPCRouter({
     }),
 
   deleteOrder: adminProcedure
-    .input(z.object({ orderId: z.string().uuid() }))
+    .input(z.object({ orderId: z.uuid() }))
     .mutation(async ({ input }) => {
       const existingOrder = await db.query.orders.findFirst({
         where: eq(orders.id, input.orderId),
@@ -956,7 +968,9 @@ export const ordersRouter = createTRPCRouter({
         }
 
         // Delete order items
-        await tx.delete(orderItems).where(eq(orderItems.orderId, input.orderId));
+        await tx
+          .delete(orderItems)
+          .where(eq(orderItems.orderId, input.orderId));
 
         // Delete the order
         await tx.delete(orders).where(eq(orders.id, input.orderId));

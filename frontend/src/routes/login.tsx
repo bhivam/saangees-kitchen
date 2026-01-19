@@ -12,12 +12,12 @@ export const Route = createFileRoute("/login")({
     if (!data) return;
 
     const {
-      user: { isAnonymous, isAdmin },
+      user: { isAnonymous, role },
     } = data;
 
     if (isAnonymous) return;
 
-    throw redirect({ to: isAdmin ? "/dashboard" : "/" });
+    throw redirect({ to: role === "admin" ? "/dashboard" : "/" });
   },
 });
 
