@@ -6,26 +6,37 @@ on:
 
 jobs:
   migrate:
-    if: ${{ !(github.ref == 'refs/heads/dev' && secrets.DATABASE_URL_DEV == 'none') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - name: Check if should skip
+        id: check
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/dev" && -z "${{ secrets.DATABASE_URL_DEV }}" ]]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.skip != 'true'
 
       - uses: pnpm/action-setup@v4
+        if: steps.check.outputs.skip != 'true'
         with:
           version: 10
 
       - uses: actions/setup-node@v4
+        if: steps.check.outputs.skip != 'true'
         with:
           node-version: 22
           cache: 'pnpm'
           cache-dependency-path: backend/pnpm-lock.yaml
 
       - name: Install backend dependencies
+        if: steps.check.outputs.skip != 'true'
         working-directory: backend
         run: pnpm install
 
       - name: Run migrations
+        if: steps.check.outputs.skip != 'true'
         working-directory: backend
         run: pnpm db:migrate
         env:
