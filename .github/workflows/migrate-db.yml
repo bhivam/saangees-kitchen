@@ -2,14 +2,13 @@ name: Migrate DB
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main]
 
 jobs:
   migrate:
-    if: ${{ !(github.ref == 'refs/heads/dev' && secrets.DATABASE_URL_DEV == 'none') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4
         with:
@@ -29,4 +28,4 @@ jobs:
         working-directory: backend
         run: pnpm db:migrate
         env:
-          DATABASE_URL: ${{ github.ref == 'refs/heads/main' && secrets.DATABASE_URL_PROD || secrets.DATABASE_URL_DEV }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PROD }}
