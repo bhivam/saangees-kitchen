@@ -6,6 +6,7 @@ import { env } from "../env";
 import { user } from "../db/schema";
 import { isAdminPhoneNumber } from "./admin-phones";
 import { eq } from "drizzle-orm";
+import { surgeClient } from "./surge";
 
 export const auth = betterAuth({
   baseURL: env.SERVER_URL,
@@ -26,9 +27,20 @@ export const auth = betterAuth({
       },
     }),
     phoneNumber({
-      sendOTP: ({ phoneNumber, code }) => {
-        // TODO check when last one was sent and don't send if it was too soon
+      // TODO come up with rate limiting solution
+      // need to test if render forwards ip addresses in x-forwarded-for field
+      sendOTP: async ({ phoneNumber, code }) => {
         console.log(`\nOTP for ${phoneNumber}: ${code}`);
+
+        const message = await surgeClient.messages.create(
+          "acct_01kfbndhbffe2v1jvyxvmr3kb1",
+          {
+            conversation: { contact: { phone_number: phoneNumber } },
+            body: `Here is your OTP for Saangee's Kitchen: ${code}.`,
+          },
+        );
+
+        console.log(message);
       },
       async callbackOnVerification(data) {
         await db

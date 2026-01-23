@@ -9,6 +9,8 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SmsTermsRouteImport } from './routes/sms-terms'
+import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as CartRouteImport } from './routes/cart'
@@ -24,6 +26,16 @@ import { Route as DashboardHomeRouteImport } from './routes/dashboard/home'
 import { Route as DashboardCookingRouteImport } from './routes/dashboard/cooking'
 import { Route as DashboardBaggingRouteImport } from './routes/dashboard/bagging'
 
+const SmsTermsRoute = SmsTermsRouteImport.update({
+  id: '/sms-terms',
+  path: '/sms-terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
+  id: '/privacy-policy',
+  path: '/privacy-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -101,6 +113,8 @@ export interface FileRoutesByFullPath {
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
   '/login': typeof LoginRoute
+  '/privacy-policy': typeof PrivacyPolicyRoute
+  '/sms-terms': typeof SmsTermsRoute
   '/dashboard/bagging': typeof DashboardBaggingRoute
   '/dashboard/cooking': typeof DashboardCookingRoute
   '/dashboard/home': typeof DashboardHomeRoute
@@ -116,6 +130,8 @@ export interface FileRoutesByTo {
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
   '/login': typeof LoginRoute
+  '/privacy-policy': typeof PrivacyPolicyRoute
+  '/sms-terms': typeof SmsTermsRoute
   '/dashboard/bagging': typeof DashboardBaggingRoute
   '/dashboard/cooking': typeof DashboardCookingRoute
   '/dashboard/home': typeof DashboardHomeRoute
@@ -133,6 +149,8 @@ export interface FileRoutesById {
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
   '/login': typeof LoginRoute
+  '/privacy-policy': typeof PrivacyPolicyRoute
+  '/sms-terms': typeof SmsTermsRoute
   '/dashboard/bagging': typeof DashboardBaggingRoute
   '/dashboard/cooking': typeof DashboardCookingRoute
   '/dashboard/home': typeof DashboardHomeRoute
@@ -151,6 +169,8 @@ export interface FileRouteTypes {
     | '/cart'
     | '/checkout'
     | '/login'
+    | '/privacy-policy'
+    | '/sms-terms'
     | '/dashboard/bagging'
     | '/dashboard/cooking'
     | '/dashboard/home'
@@ -166,6 +186,8 @@ export interface FileRouteTypes {
     | '/cart'
     | '/checkout'
     | '/login'
+    | '/privacy-policy'
+    | '/sms-terms'
     | '/dashboard/bagging'
     | '/dashboard/cooking'
     | '/dashboard/home'
@@ -182,6 +204,8 @@ export interface FileRouteTypes {
     | '/cart'
     | '/checkout'
     | '/login'
+    | '/privacy-policy'
+    | '/sms-terms'
     | '/dashboard/bagging'
     | '/dashboard/cooking'
     | '/dashboard/home'
@@ -199,10 +223,26 @@ export interface RootRouteChildren {
   CartRoute: typeof CartRoute
   CheckoutRoute: typeof CheckoutRoute
   LoginRoute: typeof LoginRoute
+  PrivacyPolicyRoute: typeof PrivacyPolicyRoute
+  SmsTermsRoute: typeof SmsTermsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/sms-terms': {
+      id: '/sms-terms'
+      path: '/sms-terms'
+      fullPath: '/sms-terms'
+      preLoaderRoute: typeof SmsTermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy-policy': {
+      id: '/privacy-policy'
+      path: '/privacy-policy'
+      fullPath: '/privacy-policy'
+      preLoaderRoute: typeof PrivacyPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -338,6 +378,8 @@ const rootRouteChildren: RootRouteChildren = {
   CartRoute: CartRoute,
   CheckoutRoute: CheckoutRoute,
   LoginRoute: LoginRoute,
+  PrivacyPolicyRoute: PrivacyPolicyRoute,
+  SmsTermsRoute: SmsTermsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
