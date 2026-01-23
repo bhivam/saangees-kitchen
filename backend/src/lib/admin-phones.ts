@@ -1,11 +1,4 @@
-const ADMIN_PHONE_NUMBERS = [
-  "+13333333333",
-  "+14444444444",
-  "+12222222222",
-  "+15555555555",
-  "+17325892069",
-  "+18622502699",
-];
+const ADMIN_PHONE_NUMBERS = ["+17325892069", "+18622502699"];
 
 export function isAdminPhoneNumber(
   phoneNumber: string | null | undefined,

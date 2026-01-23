@@ -112,6 +112,7 @@ export const menuRouter = createTRPCRouter({
       const uniqueItems = [...new Set(input.items)];
 
       return await db.transaction(async (tx) => {
+        // Need to get rid of this delete
         // Delete existing menu entries for this date
         await tx.delete(menuEntries).where(eq(menuEntries.date, input.date));
 
@@ -123,6 +124,7 @@ export const menuRouter = createTRPCRouter({
             sortOrder: index,
           }));
 
+          // TODO we want to do some upsert stuff here
           await tx.insert(menuEntries).values(entries);
         }
 
