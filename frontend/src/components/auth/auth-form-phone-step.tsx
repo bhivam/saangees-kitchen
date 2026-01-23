@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { useAuthForm } from "@/hooks/use-auth-form";
 
 interface AuthFormPhoneStepProps {
@@ -28,9 +30,11 @@ export function AuthFormPhoneStep({
 }: AuthFormPhoneStepProps) {
   const [displayValue, setDisplayValue] = useState("");
   const [isFocused, setIsFocused] = useState(false);
+  const [hasConsented, setHasConsented] = useState(false);
 
   const digits = getDigitsOnly(displayValue);
   const isComplete = digits.length === 10;
+  const canSubmit = isComplete && hasConsented;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const input = e.target.value;
@@ -45,7 +49,7 @@ export function AuthFormPhoneStep({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (isComplete) {
+    if (canSubmit) {
       onSubmit();
     }
   };
@@ -76,10 +80,37 @@ export function AuthFormPhoneStep({
         </div>
       </div>
 
+      <div className="flex items-start gap-3">
+        <Checkbox
+          id="sms-consent"
+          checked={hasConsented}
+          onCheckedChange={(checked) => setHasConsented(checked === true)}
+          disabled={isLoading}
+          className="mt-1"
+        />
+        <label
+          htmlFor="sms-consent"
+          className="text-muted-foreground text-xs leading-relaxed"
+        >
+          I authorize Saangee's Kitchen to send automated messages containing
+          authentication codes and account notifications to the phone number
+          provided. Message/data rates apply. Message frequency varies. Text
+          HELP for help or STOP to opt out. Consent is not a condition of
+          purchase. See{" "}
+          <Link
+            to="/privacy-policy"
+            className="text-foreground underline underline-offset-2 hover:no-underline"
+          >
+            privacy policy
+          </Link>
+          .
+        </label>
+      </div>
+
       <Button
         type="submit"
         className="w-full"
-        disabled={isLoading || !isComplete}
+        disabled={isLoading || !canSubmit}
       >
         {isLoading ? "Sending..." : "Send OTP"}
       </Button>

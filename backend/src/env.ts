@@ -15,6 +15,7 @@ export const env = createEnv({
       .pipe(z.number().positive()),
     SERVER_URL: z.url().default("http://localhost:3000"),
     FRONTEND_URLS: semicolonSeparatedUrlsSchema,
+    SURGE_API_KEY: z.string(),
   },
   runtimeEnv: process.env,
 });
