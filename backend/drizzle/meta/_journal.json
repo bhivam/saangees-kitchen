@@ -8,6 +8,13 @@
       "when": 1768981486629,
       "tag": "0000_real_cammi",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1769286610596,
+      "tag": "0001_majestic_stepford_cuckoos",
+      "breakpoints": true
     }
   ]
 }

@@ -324,14 +324,7 @@ function AddManualOrderDialogContent({
       });
       // Auto-select this entry for modifier configuration
       setSelectedDate(new Date());
-      setSelectedMenuEntry({
-        id: entry.id,
-        date: entry.date,
-        sortOrder: entry.sortOrder,
-        isCustom: entry.isCustom,
-        menuItemId: newItem.id,
-        menuItem: entry.menuItem,
-      });
+      setSelectedMenuEntry(entry);
       // Initialize modifier selections
       const initialSelections: Record<string, string[]> = {};
       for (const mg of entry.menuItem.modifierGroups) {
@@ -369,14 +362,7 @@ function AddManualOrderDialogContent({
         menuItemId: item.id,
       });
       setSelectedDate(new Date());
-      setSelectedMenuEntry({
-        id: entry.id,
-        date: entry.date,
-        sortOrder: entry.sortOrder,
-        isCustom: entry.isCustom,
-        menuItemId: item.id,
-        menuItem: entry.menuItem,
-      });
+      setSelectedMenuEntry(entry);
       const initialSelections: Record<string, string[]> = {};
       for (const mg of entry.menuItem.modifierGroups) {
         initialSelections[mg.modifierGroup.id] = [];

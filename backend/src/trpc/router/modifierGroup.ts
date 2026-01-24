@@ -1,7 +1,7 @@
 import z from "zod";
-import { createTRPCRouter, publicProcedure, adminProcedure } from "..";
-import { db } from "../../db/db";
-import { modifierGroups, modifierOptions } from "../../db/schema";
+import { createTRPCRouter, publicProcedure, adminProcedure } from "../index.js";
+import { db } from "../../db/db.js";
+import { modifierGroups, modifierOptions } from "../../db/schema.js";
 import { TRPCError } from "@trpc/server";
 import { eq, isNull } from "drizzle-orm";
 

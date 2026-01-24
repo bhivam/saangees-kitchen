@@ -90,6 +90,13 @@ export function AuthFormPhoneStep({
           >
             privacy policy
           </Link>
+          . See{" "}
+          <Link
+            to="/sms-terms"
+            className="text-foreground underline underline-offset-2 hover:no-underline"
+          >
+            SMS terms and conditions
+          </Link>
           .
         </p>
       </div>

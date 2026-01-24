@@ -1,13 +1,17 @@
 import z from "zod";
-import { createTRPCRouter, protectedProcedure, adminProcedure } from "..";
-import { db } from "../../db/db";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  adminProcedure,
+} from "../index.js";
+import { db } from "../../db/db.js";
 import {
   orders,
   orderItems,
   orderItemModifiers,
   menuEntries,
   modifierOptions,
-} from "../../db/schema";
+} from "../../db/schema.js";
 import { inArray, eq, and, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 

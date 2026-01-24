@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "./ui/button";
 import { AddItemDialog } from "./add-item-dialog";
-import { ArrowUp, ArrowDown, X, Plus } from "lucide-react";
+import { ArrowUp, ArrowDown, Plus, Trash } from "lucide-react";
 import { useTRPC, useTRPCClient, type RouterOutputs } from "@/trpc";
 import { toast } from "sonner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -43,13 +43,11 @@ export function MenuEditor() {
   const { data: existingMenu, isPending: menuPending } =
     useQuery(menuQueryOptions);
 
-  // Derive menu entries and available items from query cache
   const menuEntries = existingMenu ?? [];
   const selectedItemIds = new Set(menuEntries.map((e) => e.menuItem.id));
   const unselectedItems =
     allItems?.filter((item) => !selectedItemIds.has(item.id)) ?? [];
 
-  // Add item mutation with optimistic update
   const addItemMutation = useMutation({
     mutationFn: async (itemId: string) => {
       const currentEntries =
@@ -59,7 +57,8 @@ export function MenuEditor() {
         .map((e) => e.menuItem.id);
       return trpcClient.menu.save.mutate({
         date: dateString,
-        items: [...currentIds, itemId],
+        itemsToSave: [...currentIds, itemId],
+        itemsToDelete: [],
       });
     },
     onMutate: async (itemId) => {
@@ -77,6 +76,7 @@ export function MenuEditor() {
         date: dateString,
         sortOrder: currentEntries.length,
         menuItem: itemToAdd,
+        hasOrders: false,
       };
 
       queryClient.setQueryData(menuQueryOptions.queryKey, [
@@ -96,7 +96,6 @@ export function MenuEditor() {
     },
   });
 
-  // Remove item mutation with optimistic update
   const removeItemMutation = useMutation({
     mutationFn: async (entryId: string) => {
       const currentEntries =
@@ -106,7 +105,8 @@ export function MenuEditor() {
         .map((e) => e.menuItem.id);
       return trpcClient.menu.save.mutate({
         date: dateString,
-        items: remainingIds,
+        itemsToSave: remainingIds,
+        itemsToDelete: [entryId],
       });
     },
     onMutate: async (entryId) => {
@@ -130,29 +130,31 @@ export function MenuEditor() {
     },
   });
 
-  // Reorder mutation with optimistic update
   const reorderMutation = useMutation({
     mutationFn: async ({
       entryId,
       direction,
+      currentEntries,
     }: {
       entryId: string;
       direction: "up" | "down";
+      currentEntries: MenuEntry[];
     }) => {
-      const currentEntries =
-        queryClient.getQueryData<MenuEntry[]>(menuQueryOptions.queryKey) ?? [];
       const index = currentEntries.findIndex((e) => e.id === entryId);
       const newIndex = direction === "up" ? index - 1 : index + 1;
 
       const reordered = [...currentEntries];
-      const [item] = reordered.splice(index, 1);
-      reordered.splice(newIndex, 0, item);
+      [reordered[index], reordered[newIndex]] = [
+        reordered[newIndex],
+        reordered[index],
+      ];
 
       return trpcClient.menu.save.mutate({
         date: dateString,
-        items: reordered
+        itemsToSave: reordered
           .filter((e) => !isOptimisticEntry(e.id))
           .map((e) => e.menuItem.id),
+        itemsToDelete: [],
       });
     },
     onMutate: async ({ entryId, direction }) => {
@@ -169,7 +171,6 @@ export function MenuEditor() {
       const [item] = reordered.splice(index, 1);
       reordered.splice(newIndex, 0, item);
 
-      // Update sortOrder for display
       const withUpdatedOrder = reordered.map((e, i) => ({
         ...e,
         sortOrder: i,
@@ -189,7 +190,6 @@ export function MenuEditor() {
     },
   });
 
-  // Check if any mutation is in flight
   const isMutating =
     addItemMutation.isPending ||
     removeItemMutation.isPending ||
@@ -209,13 +209,21 @@ export function MenuEditor() {
 
   const handleMoveUp = (entryId: string, index: number) => {
     if (index > 0) {
-      reorderMutation.mutate({ entryId, direction: "up" });
+      reorderMutation.mutate({
+        entryId,
+        direction: "up",
+        currentEntries: [...menuEntries],
+      });
     }
   };
 
   const handleMoveDown = (entryId: string, index: number) => {
     if (index < menuEntries.length - 1) {
-      reorderMutation.mutate({ entryId, direction: "down" });
+      reorderMutation.mutate({
+        entryId,
+        direction: "down",
+        currentEntries: [...menuEntries],
+      });
     }
   };
 
@@ -230,7 +238,6 @@ export function MenuEditor() {
         </div>
 
         {isLoading ? (
-          // Skeleton loading state
           <>
             <div className="mb-8">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
@@ -273,7 +280,6 @@ export function MenuEditor() {
             </div>
           </>
         ) : (
-          // Loaded content
           <>
             <div className="mb-8">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
@@ -303,7 +309,6 @@ export function MenuEditor() {
                             : "border-primary/50 bg-primary/5",
                         )}
                       >
-                        {/* Item info */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-baseline gap-2">
                             <h4 className="font-semibold truncate">
@@ -317,43 +322,46 @@ export function MenuEditor() {
                             {entry.menuItem.description}
                           </p>
                         </div>
+                        <div className="flex items-center">
+                          <div className="flex flex-col gap-1 shrink-0">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => handleMoveUp(entry.id, index)}
+                              disabled={
+                                index === 0 || isMutating || isOptimistic
+                              }
+                            >
+                              <ArrowUp className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => handleMoveDown(entry.id, index)}
+                              disabled={
+                                index === menuEntries.length - 1 ||
+                                isMutating ||
+                                isOptimistic
+                              }
+                            >
+                              <ArrowDown className="h-4 w-4" />
+                            </Button>
+                          </div>
 
-                        {/* Reorder buttons */}
-                        <div className="flex flex-col gap-1 shrink-0">
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7"
-                            onClick={() => handleMoveUp(entry.id, index)}
-                            disabled={index === 0 || isMutating || isOptimistic}
-                          >
-                            <ArrowUp className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => handleMoveDown(entry.id, index)}
+                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
+                            onClick={() => handleRemoveItem(entry.id)}
                             disabled={
-                              index === menuEntries.length - 1 ||
-                              isMutating ||
-                              isOptimistic
+                              entry.hasOrders || isMutating || isOptimistic
                             }
                           >
-                            <ArrowDown className="h-4 w-4" />
+                            <Trash className="h-4 w-4" />
                           </Button>
                         </div>
-
-                        {/* Remove button */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
-                          onClick={() => handleRemoveItem(entry.id)}
-                          disabled={isMutating || isOptimistic}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
                       </div>
                     );
                   })}
@@ -417,7 +425,6 @@ export function MenuEditor() {
         )}
       </div>
 
-      {/* Right column: Date picker */}
       <div className="w-96 p-6 flex flex-col border-l">
         <h2 className="text-lg font-semibold mb-4">Select Date</h2>
         <div className="flex justify-center">
@@ -430,7 +437,6 @@ export function MenuEditor() {
           />
         </div>
 
-        {/* Date summary */}
         {selectedDate && (
           <div className="mt-auto pt-4 border-t">
             <p className="text-sm text-muted-foreground">Editing menu for:</p>
@@ -447,3 +453,4 @@ export function MenuEditor() {
     </div>
   );
 }
+

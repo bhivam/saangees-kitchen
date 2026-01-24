@@ -1,12 +1,12 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { db } from "../db/db";
+import { db } from "../db/db.js";
 import { admin, anonymous, phoneNumber } from "better-auth/plugins";
-import { env } from "../env";
-import { user } from "../db/schema";
-import { isAdminPhoneNumber } from "./admin-phones";
+import { env } from "../env.js";
+import { user } from "../db/schema.js";
+import { isAdminPhoneNumber } from "./admin-phones.js";
 import { eq } from "drizzle-orm";
-import { surgeClient } from "./surge";
+import { surgeClient } from "./surge.js";
 
 export const auth = betterAuth({
   baseURL: env.SERVER_URL,

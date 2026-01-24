@@ -1,9 +1,27 @@
-import { createTRPCRouter, publicProcedure, adminProcedure } from "..";
+import { createTRPCRouter, publicProcedure, adminProcedure } from "../index.js";
 import { z } from "zod";
-import { eq, inArray, isNull, and } from "drizzle-orm";
-import { db } from "../../db/db";
-import { menuItems, menuEntries } from "../../db/schema";
+import { eq, inArray, isNull, and, sql, exists } from "drizzle-orm";
+import { db } from "../../db/db.js";
+import { menuItems, menuEntries, orderItems } from "../../db/schema.js";
 import { TRPCError } from "@trpc/server";
+import { PgColumn } from "drizzle-orm/pg-core";
+
+// TODO may consider differentiating having a manual order vs a customer order
+function hasOrdersQuery(menuEntriesId: PgColumn) {
+  return exists(
+    db
+      .select({})
+      .from(orderItems)
+      .where(
+        and(
+          eq(orderItems.menuEntryId, menuEntriesId),
+          isNull(orderItems.deletedAt),
+        ),
+      ),
+  )
+    .mapWith(Boolean)
+    .as("hasOrders");
+}
 
 export const menuRouter = createTRPCRouter({
   getByDate: publicProcedure
@@ -19,6 +37,7 @@ export const menuRouter = createTRPCRouter({
           date: menuEntries.date,
           sortOrder: menuEntries.sortOrder,
           menuItem: menuItems,
+          hasOrders: hasOrdersQuery(menuEntries.id),
         })
         .from(menuEntries)
         .innerJoin(menuItems, eq(menuEntries.menuItemId, menuItems.id))
@@ -53,6 +72,7 @@ export const menuRouter = createTRPCRouter({
               inArray(menuEntries.date, input.dates),
               eq(menuEntries.isCustom, false),
             ),
+        extras: ({ id }) => ({ hasOrders: hasOrdersQuery(id) }),
         with: {
           menuItem: {
             with: {
@@ -98,68 +118,26 @@ export const menuRouter = createTRPCRouter({
       return filteredResult;
     }),
 
-  // Unified save mutation - always deletes existing and inserts new entries
-  // This prevents duplicates and handles both create and update cases
   save: adminProcedure
     .input(
       z.object({
         date: z.string(),
-        items: z.array(z.string()),
+        itemsToSave: z.array(z.string()),
+        itemsToDelete: z.array(z.string()),
       }),
     )
     .mutation(async ({ input }) => {
-      // Deduplicate items (in case frontend sends duplicates)
-      const uniqueItems = [...new Set(input.items)];
+      const uniqueItems = [...new Set(input.itemsToSave)];
 
       return await db.transaction(async (tx) => {
-        // Need to get rid of this delete
-        // Delete existing menu entries for this date
-        await tx.delete(menuEntries).where(eq(menuEntries.date, input.date));
-
-        // Insert new entries
-        if (uniqueItems.length > 0) {
-          const entries = uniqueItems.map((itemId, index) => ({
-            date: input.date,
-            menuItemId: itemId,
-            sortOrder: index,
-          }));
-
-          // TODO we want to do some upsert stuff here
-          await tx.insert(menuEntries).values(entries);
-        }
-
-        // Return the new menu entries with full menu item data
-        const newEntries = await tx
-          .select({
-            id: menuEntries.id,
-            date: menuEntries.date,
-            sortOrder: menuEntries.sortOrder,
-            menuItem: menuItems,
-          })
-          .from(menuEntries)
-          .innerJoin(menuItems, eq(menuEntries.menuItemId, menuItems.id))
+        await tx
+          .delete(menuEntries)
           .where(
-            and(eq(menuEntries.date, input.date), isNull(menuItems.deletedAt)),
-          )
-          .orderBy(menuEntries.sortOrder);
-
-        return { date: input.date, entries: newEntries };
-      });
-    }),
-
-  // Keep create and update as aliases for backwards compatibility
-  create: adminProcedure
-    .input(
-      z.object({
-        date: z.string(),
-        items: z.array(z.string()),
-      }),
-    )
-    .mutation(async ({ input }) => {
-      const uniqueItems = [...new Set(input.items)];
-
-      return await db.transaction(async (tx) => {
-        await tx.delete(menuEntries).where(eq(menuEntries.date, input.date));
+            and(
+              eq(menuEntries.date, input.date),
+              inArray(menuEntries.id, input.itemsToDelete),
+            ),
+          );
 
         if (uniqueItems.length > 0) {
           const entries = uniqueItems.map((itemId, index) => ({
@@ -167,7 +145,18 @@ export const menuRouter = createTRPCRouter({
             menuItemId: itemId,
             sortOrder: index,
           }));
-          await tx.insert(menuEntries).values(entries);
+
+          await tx
+            .insert(menuEntries)
+            .values(entries)
+            .onConflictDoUpdate({
+              target: [
+                menuEntries.date,
+                menuEntries.menuItemId,
+                menuEntries.isCustom,
+              ],
+              set: { sortOrder: sql`excluded.sort_order` },
+            });
         }
 
         const newEntries = await tx
@@ -176,46 +165,7 @@ export const menuRouter = createTRPCRouter({
             date: menuEntries.date,
             sortOrder: menuEntries.sortOrder,
             menuItem: menuItems,
-          })
-          .from(menuEntries)
-          .innerJoin(menuItems, eq(menuEntries.menuItemId, menuItems.id))
-          .where(
-            and(eq(menuEntries.date, input.date), isNull(menuItems.deletedAt)),
-          )
-          .orderBy(menuEntries.sortOrder);
-
-        return { date: input.date, entries: newEntries };
-      });
-    }),
-
-  update: adminProcedure
-    .input(
-      z.object({
-        date: z.string(),
-        items: z.array(z.string()),
-      }),
-    )
-    .mutation(async ({ input }) => {
-      const uniqueItems = [...new Set(input.items)];
-
-      return await db.transaction(async (tx) => {
-        await tx.delete(menuEntries).where(eq(menuEntries.date, input.date));
-
-        if (uniqueItems.length > 0) {
-          const entries = uniqueItems.map((itemId, index) => ({
-            date: input.date,
-            menuItemId: itemId,
-            sortOrder: index,
-          }));
-          await tx.insert(menuEntries).values(entries);
-        }
-
-        const newEntries = await tx
-          .select({
-            id: menuEntries.id,
-            date: menuEntries.date,
-            sortOrder: menuEntries.sortOrder,
-            menuItem: menuItems,
+            hasOrders: hasOrdersQuery(menuEntries.id),
           })
           .from(menuEntries)
           .innerJoin(menuItems, eq(menuEntries.menuItemId, menuItems.id))
@@ -234,7 +184,7 @@ export const menuRouter = createTRPCRouter({
     .input(
       z.object({
         date: z.string(),
-        menuItemId: z.string().uuid(),
+        menuItemId: z.uuid(),
       }),
     )
     .mutation(async ({ input }) => {
@@ -245,6 +195,7 @@ export const menuRouter = createTRPCRouter({
           eq(menuEntries.menuItemId, input.menuItemId),
           eq(menuEntries.isCustom, true),
         ),
+        extras: ({ id }) => ({ hasOrders: hasOrdersQuery(id) }),
         with: {
           menuItem: {
             with: {
@@ -263,15 +214,7 @@ export const menuRouter = createTRPCRouter({
       });
 
       // If a custom entry already exists, return it
-      if (existingEntry) {
-        return {
-          id: existingEntry.id,
-          date: existingEntry.date,
-          sortOrder: existingEntry.sortOrder,
-          isCustom: existingEntry.isCustom,
-          menuItem: existingEntry.menuItem,
-        };
-      }
+      if (existingEntry) return existingEntry;
 
       // Verify the menu item exists
       const menuItem = await db.query.menuItems.findFirst({
@@ -315,10 +258,8 @@ export const menuRouter = createTRPCRouter({
       }
 
       return {
-        id: entry.id,
-        date: entry.date,
-        sortOrder: entry.sortOrder,
-        isCustom: entry.isCustom,
+        ...entry,
+        hasOrders: false,
         menuItem,
       };
     }),
@@ -327,7 +268,7 @@ export const menuRouter = createTRPCRouter({
   convertCustomToNormal: adminProcedure
     .input(
       z.object({
-        entryId: z.string().uuid(),
+        entryId: z.uuid(),
       }),
     )
     .mutation(async ({ input }) => {
