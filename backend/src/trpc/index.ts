@@ -1,6 +1,6 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { CreateExpressContextOptions } from "@trpc/server/adapters/express";
-import { auth } from "../lib/auth";
+import { auth } from "../lib/auth.js";
 import { fromNodeHeaders } from "better-auth/node";
 
 export async function createContext({ req }: CreateExpressContextOptions) {

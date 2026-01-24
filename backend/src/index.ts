@@ -1,11 +1,11 @@
 import express from "express";
-import { env } from "./env";
+import { env } from "./env.js";
 import * as trpcExpress from "@trpc/server/adapters/express";
-import { appRouter } from "./trpc/router";
-import { createContext } from "./trpc";
+import { appRouter } from "./trpc/router/index.js";
+import { createContext } from "./trpc/index.js";
 import cors from "cors";
 import { toNodeHandler } from "better-auth/node";
-import { auth } from "./lib/auth";
+import { auth } from "./lib/auth.js";
 
 // Format timestamp in local timezone for logging
 // Returns format like: 2025-01-12 15:30:45.123 EST
@@ -19,7 +19,9 @@ function formatLocalTimestamp(date: Date): string {
   const ms = String(date.getMilliseconds()).padStart(3, "0");
 
   // Get timezone string (e.g., "EST" or "EDT")
-  const tzString = date.toLocaleTimeString("en-US", { timeZoneName: "short" }).split(" ")[2];
+  const tzString = date
+    .toLocaleTimeString("en-US", { timeZoneName: "short" })
+    .split(" ")[2];
 
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${ms} ${tzString}`;
 }

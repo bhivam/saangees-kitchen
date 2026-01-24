@@ -1,8 +1,8 @@
-import { createTRPCRouter, publicProcedure, adminProcedure } from "..";
+import { createTRPCRouter, publicProcedure, adminProcedure } from "../index.js";
 import { z } from "zod";
 import { eq, inArray, isNull, and, sql, exists } from "drizzle-orm";
-import { db } from "../../db/db";
-import { menuItems, menuEntries, orderItems } from "../../db/schema";
+import { db } from "../../db/db.js";
+import { menuItems, menuEntries, orderItems } from "../../db/schema.js";
 import { TRPCError } from "@trpc/server";
 import { PgColumn } from "drizzle-orm/pg-core";
 

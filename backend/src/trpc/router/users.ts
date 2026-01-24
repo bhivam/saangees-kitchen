@@ -1,7 +1,7 @@
 import z from "zod";
-import { createTRPCRouter, adminProcedure } from "..";
-import { db } from "../../db/db";
-import { user } from "../../db/schema";
+import { createTRPCRouter, adminProcedure } from "../index.js";
+import { db } from "../../db/db.js";
+import { user } from "../../db/schema.js";
 import { or, eq, and, like } from "drizzle-orm";
 
 export const usersRouter = createTRPCRouter({
