@@ -12,12 +12,21 @@ import {
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
+const sharedColumns = {
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at")
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => /* @__PURE__ */ new Date()),
+  deletedAt: timestamp("deleted_at"),
+};
+
 export const menuItems = pgTable("menu_items", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(),
   description: text("description").notNull(),
   basePrice: integer("base_price").notNull(),
-  deletedAt: timestamp("deleted_at"),
+  ...sharedColumns,
 });
 
 export const menuItemsRelations = relations(menuItems, ({ many }) => ({
@@ -29,7 +38,7 @@ export const modifierGroups = pgTable("modifier_groups", {
   name: text("name").notNull(),
   minSelect: integer("min_select").notNull().default(0),
   maxSelect: integer("max_select"),
-  deletedAt: timestamp("deleted_at"),
+  ...sharedColumns,
 });
 
 export const modifierGroupsRelations = relations(
@@ -49,7 +58,7 @@ export const modifierOptions = pgTable(
       .references(() => modifierGroups.id),
     name: text("name").notNull(),
     priceDelta: integer("price_delta").notNull().default(0),
-    deletedAt: timestamp("deleted_at"),
+    ...sharedColumns,
   },
   (t) => [unique().on(t.groupId, t.name)],
 );
@@ -75,6 +84,7 @@ export const menuItemModifierGroups = pgTable(
       .notNull()
       .references(() => modifierGroups.id),
     sortOrder: integer("sort_order").notNull(),
+    ...sharedColumns,
   },
   (t) => [primaryKey({ columns: [t.menuItemId, t.groupId], name: "pk" })],
 );
@@ -98,13 +108,12 @@ export const orders = pgTable("orders", {
   userId: text("user_id")
     .notNull()
     .references(() => user.id),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
   status: text("status").notNull(),
   specialInstructions: text("special_instructions"),
   total: integer("total_amount"),
   centsPaid: integer("cents_paid").notNull().default(0),
   isManual: boolean("is_manual").notNull().default(false),
+  ...sharedColumns,
 });
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({
@@ -127,6 +136,7 @@ export const orderItems = pgTable("order_items", {
   specialInstructions: text("special_instructions"),
   itemPrice: integer("item_price").notNull(),
   baggedAt: timestamp("bagged_at"),
+  ...sharedColumns,
 });
 
 export const orderItemsRelations = relations(orderItems, ({ one, many }) => ({
@@ -150,6 +160,7 @@ export const orderItemModifiers = pgTable("order_item_modifier_options", {
     .notNull()
     .references(() => modifierOptions.id),
   optionPrice: integer("option_price").notNull(),
+  ...sharedColumns,
 });
 
 export const orderItemModifiersRelations = relations(
@@ -175,7 +186,10 @@ export const menuEntries = pgTable(
       .notNull()
       .references(() => menuItems.id),
     sortOrder: integer("sort_order").notNull(),
+    // is_custom determines item visibility to customers
+    // TODO maybe change this to is_visible
     isCustom: boolean("is_custom").notNull().default(false),
+    ...sharedColumns,
   },
   (t) => [unique("menu_entry_date_item").on(t.date, t.menuItemId, t.isCustom)],
 );
