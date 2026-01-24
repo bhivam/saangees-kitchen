@@ -195,6 +195,7 @@ export const menuRouter = createTRPCRouter({
           eq(menuEntries.menuItemId, input.menuItemId),
           eq(menuEntries.isCustom, true),
         ),
+        extras: ({ id }) => ({ hasOrders: hasOrdersQuery(id) }),
         with: {
           menuItem: {
             with: {
@@ -213,15 +214,7 @@ export const menuRouter = createTRPCRouter({
       });
 
       // If a custom entry already exists, return it
-      if (existingEntry) {
-        return {
-          id: existingEntry.id,
-          date: existingEntry.date,
-          sortOrder: existingEntry.sortOrder,
-          isCustom: existingEntry.isCustom,
-          menuItem: existingEntry.menuItem,
-        };
-      }
+      if (existingEntry) return existingEntry;
 
       // Verify the menu item exists
       const menuItem = await db.query.menuItems.findFirst({
@@ -265,10 +258,8 @@ export const menuRouter = createTRPCRouter({
       }
 
       return {
-        id: entry.id,
-        date: entry.date,
-        sortOrder: entry.sortOrder,
-        isCustom: entry.isCustom,
+        ...entry,
+        hasOrders: false,
         menuItem,
       };
     }),
