@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "./ui/button";
 import { AddItemDialog } from "./add-item-dialog";
-import { ArrowUp, ArrowDown, X, Plus, Trash } from "lucide-react";
+import { ArrowUp, ArrowDown, Plus, Trash } from "lucide-react";
 import { useTRPC, useTRPCClient, type RouterOutputs } from "@/trpc";
 import { toast } from "sonner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
