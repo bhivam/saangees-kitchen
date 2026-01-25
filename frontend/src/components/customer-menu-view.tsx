@@ -3,21 +3,13 @@ import { useTRPC, type RouterOutputs } from "@/trpc";
 import { Link } from "@tanstack/react-router";
 import { Skeleton } from "./ui/skeleton";
 import { Button } from "./ui/button";
-import { useAuth } from "@/hooks/use-auth";
-import { authClient } from "@/lib/auth-client";
-import { toast } from "sonner";
 import { ShoppingCart, Menu } from "lucide-react";
 import { AddItemDialogContent } from "./add-item-cart-dialog";
 import { useCart } from "@/hooks/use-cart";
 import { Dialog, DialogTrigger } from "./ui/dialog";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "./ui/sheet";
+import { Sheet, SheetTrigger } from "./ui/sheet";
 import { useState } from "react";
+import { HomeSheetContent } from "./home-sheet-content";
 
 export type MenuEntry = RouterOutputs["menu"]["getByDateRange"][number];
 
@@ -101,24 +93,9 @@ function DayCard({ date, entries }: { date: string; entries: MenuEntry[] }) {
 }
 
 function Header() {
-  const { user } = useAuth();
+  const [navMenuOpen, setNavMenuOpen] = useState(false);
+
   const { cart } = useCart();
-
-  const handleLogout = async () => {
-    try {
-      const response = await authClient.signOut();
-
-      if (response.error) {
-        toast.error("Logout failed");
-        return;
-      }
-
-      toast.success("Logged out successfully");
-      window.location.href = "/";
-    } catch {
-      toast.error("Logout failed");
-    }
-  };
 
   const itemCount = Object.values(cart.items).reduce(
     (sum, item) => sum + (item?.quantity || 0),
@@ -128,31 +105,18 @@ function Header() {
   return (
     <header className="sticky top-0 z-50 bg-menu-bg px-4 py-3">
       <div className="flex items-center justify-between">
-        <Sheet>
+        <Sheet open={navMenuOpen} onOpenChange={setNavMenuOpen}>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon">
               <Menu className="h-6 w-6" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="flex flex-col">
-            <SheetHeader>
-              <SheetTitle>Menu</SheetTitle>
-            </SheetHeader>
-
-            <div className="flex-1" />
-
-            <div className="pb-4">
-              {user?.isAnonymous ? (
-                <Link to="/login" className="block">
-                  <Button className="w-full">Login</Button>
-                </Link>
-              ) : (
-                <Button onClick={handleLogout} className="w-full">
-                  Logout
-                </Button>
-              )}
-            </div>
-          </SheetContent>
+          <HomeSheetContent
+            closeNavMenu={() => {
+              console.log("pressed");
+              setNavMenuOpen(false);
+            }}
+          />
         </Sheet>
 
         <h1 className="text-3xl text-menu-title font-title font-thin whitespace-nowrap">
@@ -233,7 +197,7 @@ export function CustomerMenuView() {
   return (
     <div className="min-h-screen bg-menu-bg font-serif">
       <Header />
-      <div className="container max-w-4xl mx-auto px-4 py-6">
+      <div className="container max-w-4xl mx-auto px-4">
         <div className="space-y-4">
           {daysWithItems.map((date) => {
             const entries = groupedMenus.get(date)!;
