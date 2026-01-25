@@ -42,8 +42,6 @@ type OrderItem = {
   unitPrice: number;
 };
 
-// TODO should be passing data and modes
-
 export function AddManualOrderDialog({
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
@@ -205,15 +203,12 @@ function AddManualOrderDialogContent({
     trpc.menu.createCustomMenuEntry.mutationOptions(),
   );
 
-  // Calculate total
   const total = useMemo(() => {
     return items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
   }, [items]);
 
-  // Get next 7 days' dates for the grouped view
   const next7Days = useMemo(() => getWeekDates(new Date(), 7), []);
 
-  // Group menu entries by date for the next 7 days
   const menuEntriesByDay = useMemo(() => {
     if (!menuEntriesQuery.data) return new Map<string, MenuEntry[]>();
     const grouped = new Map<string, MenuEntry[]>();
@@ -228,7 +223,6 @@ function AddManualOrderDialogContent({
     return grouped;
   }, [menuEntriesQuery.data, next7Days]);
 
-  // Calculate item price with modifiers
   const calculateItemPrice = (
     menuItem: MenuItem,
     selectedOptions: string[],
@@ -245,7 +239,6 @@ function AddManualOrderDialogContent({
     return price;
   };
 
-  // Get modifier names
   const getModifierNames = (menuItem: MenuItem, selectedOptions: string[]) => {
     const names: string[] = [];
     for (const optionId of selectedOptions) {
@@ -259,7 +252,6 @@ function AddManualOrderDialogContent({
     return names;
   };
 
-  // Add item to order
   const addItemToOrder = () => {
     if (!selectedMenuEntry) return;
 
@@ -273,7 +265,7 @@ function AddManualOrderDialogContent({
       ...items,
       {
         menuEntryId: selectedMenuEntry.id,
-        menuEntryDate: selectedMenuEntry.date, // Store the date for due date validation
+        menuEntryDate: selectedMenuEntry.date,
         menuItemName: selectedMenuEntry.menuItem.name,
         quantity: itemQuantity,
         modifierOptionIds: allSelectedOptions,
@@ -285,19 +277,16 @@ function AddManualOrderDialogContent({
       },
     ]);
 
-    // Reset for next item
     setSelectedMenuEntry(null);
     setModifierSelections({});
     setItemQuantity(1);
     setStep("items");
   };
 
-  // Remove item from order
   const removeItem = (index: number) => {
     setItems(items.filter((_, i) => i !== index));
   };
 
-  // Update item quantity
   const updateItemQuantity = (index: number, newQuantity: number) => {
     setItems(
       items.map((item, i) =>
@@ -306,7 +295,6 @@ function AddManualOrderDialogContent({
     );
   };
 
-  // Check if an item's due date has passed (client-side validation)
   const isItemPastDue = (item: OrderItem) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -315,23 +303,19 @@ function AddManualOrderDialogContent({
   };
 
   const handleNewItemCreated = async (newItem: MenuItemResult) => {
-    // Create a custom menu entry for today's date
     const todayStr = toLocalDateString(new Date());
     try {
       const entry = await createCustomEntryMutation.mutateAsync({
         date: todayStr,
         menuItemId: newItem.id,
       });
-      // Auto-select this entry for modifier configuration
       setSelectedDate(new Date());
       setSelectedMenuEntry(entry);
-      // Initialize modifier selections
       const initialSelections: Record<string, string[]> = {};
       for (const mg of entry.menuItem.modifierGroups) {
         initialSelections[mg.modifierGroup.id] = [];
       }
       setModifierSelections(initialSelections);
-      // Invalidate menu entries query to refresh the list
       queryClient.invalidateQueries({
         queryKey: trpc.menu.getByDateRange.queryKey(),
       });
@@ -342,11 +326,9 @@ function AddManualOrderDialogContent({
     }
   };
 
-  // Handle selecting an entry from the grouped list
   const handleSelectEntry = (entry: MenuEntry) => {
     setSelectedDate(new Date(entry.date + "T00:00:00"));
     setSelectedMenuEntry(entry);
-    // Initialize modifier selections
     const initialSelections: Record<string, string[]> = {};
     for (const mg of entry.menuItem.modifierGroups) {
       initialSelections[mg.modifierGroup.id] = [];
@@ -354,7 +336,6 @@ function AddManualOrderDialogContent({
     setModifierSelections(initialSelections);
   };
 
-  // Handle creating a custom entry from All Items section
   const handleSelectMenuItem = async (item: MenuItem) => {
     try {
       const entry = await createCustomEntryMutation.mutateAsync({
@@ -375,7 +356,6 @@ function AddManualOrderDialogContent({
     }
   };
 
-  // Submit order
   const handleSubmit = () => {
     if (!selectedUserId || items.length === 0) return;
 
@@ -403,7 +383,6 @@ function AddManualOrderDialogContent({
     }
   };
 
-  // Render user selection step
   if (step === "user") {
     return (
       <DialogContent className="sm:max-w-[500px]">
@@ -467,7 +446,6 @@ function AddManualOrderDialogContent({
     );
   }
 
-  // Render add item step
   if (step === "addItem") {
     return (
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
@@ -764,7 +742,6 @@ function AddManualOrderDialogContent({
     );
   }
 
-  // Render items list step (main view)
   return (
     <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
       <DialogHeader>
