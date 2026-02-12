@@ -21,11 +21,9 @@ jobs:
           cache-dependency-path: backend/pnpm-lock.yaml
 
       - name: Install backend dependencies
-        working-directory: backend
-        run: pnpm install
+        run: pnpm i
 
       - name: Run migrations
-        working-directory: backend
-        run: pnpm db:migrate
+        run: pnpm -F api db:migrate
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PROD }}

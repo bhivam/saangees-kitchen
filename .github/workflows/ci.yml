@@ -2,7 +2,7 @@ name: CI
 
 on:
   pull_request:
-    branches: [main, dev]
+    branches: [main]
 
 jobs:
   lint-and-build:
@@ -26,30 +26,11 @@ jobs:
             backend/pnpm-lock.yaml
             frontend/pnpm-lock.yaml
 
-      - name: Install backend dependencies
-        working-directory: backend
+      - name: Install Dependencies
         run: pnpm install
 
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: pnpm install
+      - name: Linting 
+        run: pnpm lint
 
-      - name: Lint backend
-        working-directory: backend
-        run: pnpm eslint .
-
-      - name: Lint frontend
-        working-directory: frontend
-        run: pnpm eslint .
-
-      - name: Build backend
-        working-directory: backend
-        run: pnpm tsc -b
-
-      - name: Generate frontend router types
-        working-directory: backend
-        run: pnpm tsc --emitDeclarationOnly --outDir ../frontend/src/router-types
-
-      - name: Build frontend
-        working-directory: frontend
-        run: pnpm tsc -b && pnpm vite build
+      - name: Building 
+        run: pnpm build
