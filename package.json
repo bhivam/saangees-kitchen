@@ -1,0 +1,7 @@
+{
+  "name": "saangees-kitchen",
+  "version": "1.0.0",
+  "dependencies": {
+    "api-router": "link:../../.local/share/pnpm/global/5/node_modules/api-router"
+  }
+}
