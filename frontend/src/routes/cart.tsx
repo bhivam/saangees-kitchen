@@ -6,7 +6,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useTRPC } from "@/trpc";
 import {
   formatDate,
-  getWeekDates,
   type MenuEntry,
 } from "@/components/customer-menu-view";
 import { formatCents } from "@/lib/utils";
@@ -41,13 +40,8 @@ function Cart() {
 
   const trpc = useTRPC();
 
-  const today = new Date();
-  const allDates = getWeekDates(today, 7);
-
   const { data: menuEntries, isLoading } = useQuery(
-    trpc.menu.getByDateRange.queryOptions({
-      dates: allDates,
-    }),
+    trpc.menu.getWeekMenu.queryOptions(),
   );
 
   function hydrateCartFromMenu(cart: Cart, menuEntries: MenuEntry[]) {
@@ -190,6 +184,15 @@ function Cart() {
     setCart(filteredCart);
   }
 
+  // Get unique sorted dates from hydrated items
+  const itemDates = [
+    ...new Set(
+      hydratedSelectedItems
+        .map((item) => item.date)
+        .filter((d): d is string => d !== null),
+    ),
+  ].sort();
+
   const handleEditItem = (item: (typeof hydratedSelectedItems)[0]) => {
     const entry = menuEntries.find((e) => e.id === item.menuEntryId);
     if (!entry) return;
@@ -231,12 +234,10 @@ function Cart() {
           </div>
         ) : (
           <div className="flex flex-col">
-            {allDates.map((date) => {
+            {itemDates.map((date) => {
               const itemsForDate = hydratedSelectedItems.filter(
-                (item) => item.date! === date,
+                (item) => item.date === date,
               );
-
-              if (itemsForDate.length === 0) return null;
 
               return (
                 <div key={date}>

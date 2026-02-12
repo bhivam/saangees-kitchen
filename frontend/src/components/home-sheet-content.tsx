@@ -118,7 +118,7 @@ export function HomeSheetContent({
       callback: closeNavMenu,
       description: "Order food",
     },
-    { label: "About", to: undefined, description: "Learn our story" },
+    { label: "About", to: "/about", description: "Learn our story" },
     { label: "Gallery", to: undefined, description: "See recent dishes" },
     { label: "Catering", to: undefined, description: "Request an event order" },
     ...(user?.role === "admin"
@@ -130,6 +130,15 @@ export function HomeSheetContent({
           },
         ]
       : []),
+  ];
+
+  const userNavItems: NavItem[] = [
+    {
+      label: "Orders",
+      to: "/my-orders",
+      callback: closeNavMenu,
+      description: "View your orders",
+    },
   ];
 
   return (
@@ -153,12 +162,14 @@ export function HomeSheetContent({
       </div>
 
       <div className="pb-4 border-t">
-        <div className="py-2">
-          <SheetNavSection items={[{ label: "Orders" }]} />
-        </div>
+        {user && !user?.isAnonymous && (
+          <div className="py-2">
+            <SheetNavSection items={userNavItems} />
+          </div>
+        )}
 
         <div className="flex flex-col gap-2">
-          {user?.isAnonymous ? (
+          {!user || user?.isAnonymous ? (
             <Link to="/login" className="block">
               <Button className="w-full">Login</Button>
             </Link>

@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTRPC } from "@/trpc";
-import { getWeekDates } from "@/components/customer-menu-view";
 import { useCart } from "@/hooks/use-cart";
 import { parseSkuId } from "@/lib/cart";
 import { useRef } from "react";
@@ -10,13 +9,8 @@ export function CartCleanup() {
   const trpc = useTRPC();
   const hasRunRef = useRef(false);
 
-  const today = new Date();
-  const allDates = getWeekDates(today, 7);
-
   const { data: menuEntries } = useQuery(
-    trpc.menu.getByDateRange.queryOptions({
-      dates: allDates,
-    }),
+    trpc.menu.getWeekMenu.queryOptions(),
   );
 
   // Run cleanup once when menu data is available

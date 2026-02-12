@@ -53,7 +53,7 @@ export const menuRouter = createTRPCRouter({
       return menuEntriesResult;
     }),
 
-  getByDateRange: publicProcedure
+  getByDateRange: adminProcedure
     .input(
       z.object({
         dates: z.array(z.string()),
@@ -117,6 +117,74 @@ export const menuRouter = createTRPCRouter({
 
       return filteredResult;
     }),
+
+  // Public endpoint that returns menu for current week (today through Saturday)
+  getWeekMenu: publicProcedure.query(async () => {
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 = Sunday, 6 = Saturday
+
+    // Calculate days until Saturday (Sunday gets full week)
+    const daysUntilSaturday = dayOfWeek === 0 ? 7 : 6 - dayOfWeek + 1;
+
+    // Generate date strings for today through Saturday
+    const dates: string[] = [];
+    for (let i = 0; i < daysUntilSaturday; i++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() + i);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      dates.push(`${year}-${month}-${day}`);
+    }
+
+    const menuEntriesResult = await db.query.menuEntries.findMany({
+      where: and(
+        inArray(menuEntries.date, dates),
+        eq(menuEntries.isCustom, false),
+      ),
+      with: {
+        menuItem: {
+          with: {
+            modifierGroups: {
+              with: {
+                modifierGroup: {
+                  with: {
+                    options: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!menuEntriesResult)
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+    // Filter out deleted items/groups/options
+    const filteredResult = menuEntriesResult
+      .filter((entry) => entry.menuItem.deletedAt === null)
+      .map((entry) => ({
+        ...entry,
+        menuItem: {
+          ...entry.menuItem,
+          modifierGroups: entry.menuItem.modifierGroups
+            .filter((mg) => mg.modifierGroup.deletedAt === null)
+            .map((mg) => ({
+              ...mg,
+              modifierGroup: {
+                ...mg.modifierGroup,
+                options: mg.modifierGroup.options.filter(
+                  (opt) => opt.deletedAt === null,
+                ),
+              },
+            })),
+        },
+      }));
+
+    return filteredResult;
+  }),
 
   save: adminProcedure
     .input(

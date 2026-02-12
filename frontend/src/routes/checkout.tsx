@@ -11,7 +11,6 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { parseSkuId, type Cart } from "@/lib/cart";
 import {
   formatDate,
-  getWeekDates,
   type MenuEntry,
 } from "@/components/customer-menu-view";
 import { formatCents } from "@/lib/utils";
@@ -94,11 +93,8 @@ function Checkout() {
     total: number;
   } | null>(null);
 
-  const today = new Date();
-  const allDates = getWeekDates(today, 7);
-
   const { data: menuEntries, isLoading: menuLoading } = useQuery(
-    trpc.menu.getByDateRange.queryOptions({ dates: allDates }),
+    trpc.menu.getWeekMenu.queryOptions(),
   );
 
   const createOrderMutation = useMutation(
@@ -156,6 +152,11 @@ function Checkout() {
     0,
   );
 
+  // Get unique sorted dates from hydrated items
+  const itemDates = [
+    ...new Set(hydratedItems.map((item) => item.date).filter((d): d is string => d !== null)),
+  ].sort();
+
   const handlePlaceOrder = () => {
     const orderItems = hydratedItems.map((item) => ({
       menuEntryId: item.menuEntryId,
@@ -175,12 +176,10 @@ function Checkout() {
       </div>
 
       <div className="py-4">
-        {allDates.map((date) => {
+        {itemDates.map((date) => {
           const itemsForDate = hydratedItems.filter(
             (item) => item.date === date,
           );
-
-          if (itemsForDate.length === 0) return null;
 
           return (
             <div key={date} className="mb-4">
