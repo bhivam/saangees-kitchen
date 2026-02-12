@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "eslint_d .",
+    "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
