@@ -5,8 +5,6 @@ import cors from "cors";
 import { toNodeHandler } from "better-auth/node";
 import { loggingMiddleware } from "./middleware/logging.js";
 
-console.log(env);
-
 const app = express();
 
 app.use(
