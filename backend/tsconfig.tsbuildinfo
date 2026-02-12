@@ -1,1 +1,1 @@
-{"root":["./src/env.ts","./src/index.ts","./src/db/db.ts","./src/db/schema.ts","./src/lib/admin-phones.ts","./src/lib/auth.ts","./src/lib/surge.ts","./src/trpc/index.ts","./src/trpc/router/index.ts","./src/trpc/router/menu.ts","./src/trpc/router/menuItem.ts","./src/trpc/router/modifierGroup.ts","./src/trpc/router/order.ts","./src/trpc/router/users.ts"],"version":"5.9.3"}
+{"root":["./src/index.ts","./src/middleware/logging.ts"],"version":"5.9.3"}

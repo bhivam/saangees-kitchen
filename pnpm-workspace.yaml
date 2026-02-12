@@ -1,8 +1,7 @@
 packages:
   - frontend
   - backend
-  - api-router
+  - api
 
 overrides:
-  api-router: link:../../.local/share/pnpm/global/5/node_modules/api-router
   esbuild@<=0.24.2: '>=0.25.0'
