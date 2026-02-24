@@ -394,6 +394,7 @@ export const ordersRouter = createTRPCRouter({
           modifierKey: string;
           modifierDisplay: string;
           totalQuantity: number;
+          notesByText: Map<string, { display: string; quantity: number }>;
         }
       >();
 
@@ -421,7 +422,21 @@ export const ordersRouter = createTRPCRouter({
             modifierKey: modifierIds,
             modifierDisplay,
             totalQuantity: item.quantity,
+            notesByText: new Map(),
           });
+        }
+
+        // Collect special instructions
+        const note = item.specialInstructions?.trim();
+        if (note) {
+          const entry = aggregated.get(key)!;
+          const noteKey = note.toLowerCase();
+          const existingNote = entry.notesByText.get(noteKey);
+          if (existingNote) {
+            existingNote.quantity += item.quantity;
+          } else {
+            entry.notesByText.set(noteKey, { display: note, quantity: item.quantity });
+          }
         }
       }
 
@@ -431,16 +446,25 @@ export const ordersRouter = createTRPCRouter({
         {
           menuItemId: string;
           menuItemName: string;
-          variants: Array<{ modifierDisplay: string; totalQuantity: number }>;
+          variants: Array<{
+            modifierDisplay: string;
+            totalQuantity: number;
+            notes: Array<{ text: string; quantity: number }>;
+          }>;
         }
       >();
 
       for (const item of aggregated.values()) {
+        const notes = Array.from(item.notesByText.values()).map((n) => ({
+          text: n.display,
+          quantity: n.quantity,
+        }));
         const existing = byMenuItem.get(item.menuItemId);
         if (existing) {
           existing.variants.push({
             modifierDisplay: item.modifierDisplay,
             totalQuantity: item.totalQuantity,
+            notes,
           });
         } else {
           byMenuItem.set(item.menuItemId, {
@@ -450,6 +474,7 @@ export const ordersRouter = createTRPCRouter({
               {
                 modifierDisplay: item.modifierDisplay,
                 totalQuantity: item.totalQuantity,
+                notes,
               },
             ],
           });

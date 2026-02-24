@@ -106,7 +106,7 @@ export function useMenuItemForm(
       }
       setModifierErrors(errors);
     },
-    onSubmit({ value }) {
+    onSubmit({ value, formApi }) {
       setModifierErrors({});
       const selection = { ...value, itemId: menuItem.id, menuEntryId };
 
@@ -115,6 +115,7 @@ export function useMenuItemForm(
       } else {
         addCartItem(selection);
       }
+      formApi.reset();
       onSuccess?.();
     },
   });

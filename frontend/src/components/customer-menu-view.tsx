@@ -78,11 +78,13 @@ function MenuItemBullet({ entry }: { entry: MenuEntry }) {
           </span>
         </button>
       </DialogTrigger>
-      <AddItemDialogContent
-        menuItem={menuItem}
-        menuEntryId={entry.id}
-        setOpen={setOpen}
-      />
+      {open && (
+        <AddItemDialogContent
+          menuItem={menuItem}
+          menuEntryId={entry.id}
+          setOpen={setOpen}
+        />
+      )}
     </Dialog>
   );
 }
