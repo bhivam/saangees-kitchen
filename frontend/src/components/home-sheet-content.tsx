@@ -118,7 +118,11 @@ export function HomeSheetContent({
       callback: closeNavMenu,
       description: "Order food",
     },
-    { label: "About", to: "/about", description: "Learn our story" },
+    {
+      label: "About",
+      to: "/about",
+      description: "More on Saangee's Kitchen",
+    },
     { label: "Gallery", to: undefined, description: "See recent dishes" },
     { label: "Catering", to: undefined, description: "Request an event order" },
     ...(user?.role === "admin"
