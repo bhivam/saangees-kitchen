@@ -8,7 +8,14 @@ import {
   DialogTrigger,
 } from "../ui/dialog";
 import { Button } from "../ui/button";
-import { ChevronDown, ChevronRight, Plus, Trash2, X } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  Trash2,
+  UserPlus,
+  X,
+} from "lucide-react";
 import { QuantityStepper } from "../quantity-stepper";
 import { useState, useMemo } from "react";
 import { useTRPC, type RouterOutputs } from "@/trpc";
@@ -167,6 +174,10 @@ function AddManualOrderDialogContent({
   const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({});
   const [allItemsExpanded, setAllItemsExpanded] = useState(false);
   const [addItemDialogOpen, setAddItemDialogOpen] = useState(false);
+  const [showCreateUser, setShowCreateUser] = useState(false);
+  const [newPhone, setNewPhone] = useState("");
+  const [newFirstName, setNewFirstName] = useState("");
+  const [newLastName, setNewLastName] = useState("");
 
   const usersQuery = useQuery(
     trpc.users.searchUsers.queryOptions({ query: userSearch, limit: 20 }),
@@ -208,6 +219,28 @@ function AddManualOrderDialogContent({
         });
         toast.success("Order updated.", { position: "bottom-center" });
         setOpen(false);
+      },
+    }),
+  );
+
+  const createUserMutation = useMutation(
+    trpc.users.createUser.mutationOptions({
+      onSuccess: (data) => {
+        queryClient.invalidateQueries({
+          queryKey: trpc.users.searchUsers.queryKey(),
+        });
+        setSelectedUserId(data.id);
+        setShowCreateUser(false);
+        setNewPhone("");
+        setNewFirstName("");
+        setNewLastName("");
+        setStep("items");
+        toast.success(`User "${data.name}" ready.`, {
+          position: "bottom-center",
+        });
+      },
+      onError: () => {
+        toast.error("Failed to create user.", { position: "bottom-center" });
       },
     }),
   );
@@ -397,6 +430,20 @@ function AddManualOrderDialogContent({
   };
 
   if (step === "user") {
+    const phoneDigits = newPhone.replace(/\D/g, "").slice(0, 10);
+    const formattedPhone =
+      phoneDigits.length === 0
+        ? ""
+        : phoneDigits.length <= 3
+          ? `(${phoneDigits}`
+          : phoneDigits.length <= 6
+            ? `(${phoneDigits.slice(0, 3)}) ${phoneDigits.slice(3)}`
+            : `(${phoneDigits.slice(0, 3)}) ${phoneDigits.slice(3, 6)}-${phoneDigits.slice(6, 10)}`;
+    const canSubmitNewUser =
+      phoneDigits.length === 10 &&
+      newFirstName.trim().length > 0 &&
+      newLastName.trim().length > 0;
+
     return (
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
@@ -407,53 +454,126 @@ function AddManualOrderDialogContent({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div>
-            <Label>Search Users</Label>
-            <Input
-              placeholder="Search by name or phone..."
-              value={userSearch}
-              onChange={(e) => setUserSearch(e.target.value)}
-            />
-          </div>
+          {!showCreateUser ? (
+            <>
+              <div>
+                <Label>Search Users</Label>
+                <Input
+                  placeholder="Search by name or phone..."
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                />
+              </div>
 
-          <div className="max-h-60 overflow-y-auto border rounded-md">
-            {usersQuery.isLoading && (
-              <div className="p-4 text-center text-muted-foreground">
-                Loading...
-              </div>
-            )}
-            {usersQuery.data?.length === 0 && (
-              <div className="p-4 text-center text-muted-foreground">
-                No users found
-              </div>
-            )}
-            {usersQuery.data?.map((user) => (
-              <button
-                key={user.id}
-                type="button"
-                className={`w-full text-left p-3 hover:bg-muted border-b last:border-b-0 ${
-                  selectedUserId === user.id ? "bg-muted" : ""
-                }`}
-                onClick={() => setSelectedUserId(user.id)}
-              >
-                <div className="font-medium">{user.name}</div>
-                {user.phoneNumber && (
-                  <div className="text-sm text-muted-foreground">
-                    {user.phoneNumber}
+              <div className="max-h-60 overflow-y-auto border rounded-md">
+                {usersQuery.isLoading && (
+                  <div className="p-4 text-center text-muted-foreground">
+                    Loading...
                   </div>
                 )}
-              </button>
-            ))}
-          </div>
+                {usersQuery.data?.length === 0 && (
+                  <div className="p-4 text-center text-muted-foreground">
+                    No users found
+                  </div>
+                )}
+                {usersQuery.data?.map((user) => (
+                  <button
+                    key={user.id}
+                    type="button"
+                    className={`w-full text-left p-3 hover:bg-muted border-b last:border-b-0 ${
+                      selectedUserId === user.id ? "bg-muted" : ""
+                    }`}
+                    onClick={() => setSelectedUserId(user.id)}
+                  >
+                    <div className="font-medium">{user.name}</div>
+                    {user.phoneNumber && (
+                      <div className="text-sm text-muted-foreground">
+                        {user.phoneNumber}
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => setShowCreateUser(true)}
+              >
+                <UserPlus className="h-4 w-4 mr-2" />
+                Create New User
+              </Button>
+            </>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <Label>Phone Number</Label>
+                <div className="border-input bg-background flex h-10 w-full items-center rounded-md border">
+                  <span className="text-muted-foreground px-2 text-sm font-medium select-none">
+                    +1
+                  </span>
+                  <input
+                    type="tel"
+                    placeholder="(555) 555-5555"
+                    value={formattedPhone}
+                    onChange={(e) => setNewPhone(e.target.value)}
+                    autoFocus
+                    className="placeholder:text-muted-foreground h-full flex-1 bg-transparent px-3 text-sm outline-none"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label>First Name</Label>
+                <Input
+                  placeholder="First name"
+                  value={newFirstName}
+                  onChange={(e) => setNewFirstName(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>Last Name</Label>
+                <Input
+                  placeholder="Last name"
+                  value={newLastName}
+                  onChange={(e) => setNewLastName(e.target.value)}
+                />
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowCreateUser(false)}
+              >
+                Back to search
+              </Button>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancel
           </Button>
-          <Button disabled={!selectedUserId} onClick={() => setStep("items")}>
-            Continue
-          </Button>
+          {showCreateUser ? (
+            <Button
+              disabled={!canSubmitNewUser || createUserMutation.isPending}
+              onClick={() =>
+                createUserMutation.mutate({
+                  phoneNumber: phoneDigits,
+                  firstName: newFirstName.trim(),
+                  lastName: newLastName.trim(),
+                })
+              }
+            >
+              {createUserMutation.isPending ? "Creating..." : "Create & Continue"}
+            </Button>
+          ) : (
+            <Button
+              disabled={!selectedUserId}
+              onClick={() => setStep("items")}
+            >
+              Continue
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     );
