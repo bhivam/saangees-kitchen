@@ -1,12 +1,21 @@
 import type { MenuItemSelection } from "@/hooks/use-menu-item-form";
 import z from "zod";
 
+/** djb2 hash → hex string, up to 8 chars */
+function shortHash(str: string): string {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash + str.charCodeAt(i)) >>> 0;
+  }
+  return hash.toString(16);
+}
+
 const UUID =
   "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}";
 
-// menuEntryId:itemId|groupId(optionId;optionId),groupId(optionId)
+// menuEntryId:itemId|groupId(optionId;optionId),groupId(optionId)~instructionsHash
 const SKUID_REGEX = new RegExp(
-  `^${UUID}:${UUID}\\|(?:${UUID}\\(${UUID}(?:;${UUID})*\\)(?:,${UUID}\\(${UUID}(?:;${UUID})*\\))*)?$`,
+  `^${UUID}:${UUID}\\|(?:${UUID}\\(${UUID}(?:;${UUID})*\\)(?:,${UUID}\\(${UUID}(?:;${UUID})*\\))*)?(?:~[0-9a-f]{1,8})?$`,
 );
 
 export function parseSkuId(id: string) {
@@ -17,15 +26,21 @@ export function parseSkuId(id: string) {
   const [menuEntryAndItem, rest] = id.split("|");
   const [menuEntryId, itemId] = menuEntryAndItem.split(":");
 
-  if (rest.length === 0) {
+  // Split off optional ~hash suffix
+  const tildeIdx = rest.indexOf("~");
+  const modifierPart = tildeIdx >= 0 ? rest.slice(0, tildeIdx) : rest;
+  const instructionsHash = tildeIdx >= 0 ? rest.slice(tildeIdx + 1) : undefined;
+
+  if (modifierPart.length === 0) {
     return {
       menuEntryId,
       itemId,
       modifierGroups: {} as Record<string, string[]>,
+      instructionsHash,
     };
   }
 
-  const groupChunks = rest.split(",");
+  const groupChunks = modifierPart.split(",");
 
   const modifierGroups = groupChunks.reduce(
     (result, chunk) => {
@@ -44,7 +59,7 @@ export function parseSkuId(id: string) {
     {} as Record<string, string[]>,
   );
 
-  return { menuEntryId, itemId, modifierGroups };
+  return { menuEntryId, itemId, modifierGroups, instructionsHash };
 }
 
 const skuidSchema = z
@@ -54,7 +69,12 @@ const skuidSchema = z
 const cartSchema = z.object({
   items: z.record(
     skuidSchema,
-    z.object({ quantity: z.number().nonnegative() }).optional(),
+    z
+      .object({
+        quantity: z.number().nonnegative(),
+        specialInstructions: z.string().optional(),
+      })
+      .optional(),
   ),
 });
 
@@ -77,7 +97,12 @@ export function getCartItemId(itemSelection: MenuItemSelection) {
     .sort((a, b) => a.groupId.localeCompare(b.groupId))
     .map(({ groupId, opts }) => `${groupId}(${opts.join(";")})`);
 
-  return `${itemSelection.menuEntryId}:${itemSelection.itemId}|${groups.join(",")}`;
+  const base = `${itemSelection.menuEntryId}:${itemSelection.itemId}|${groups.join(",")}`;
+  const instructions = itemSelection.specialInstructions?.trim();
+  if (instructions) {
+    return `${base}~${shortHash(instructions)}`;
+  }
+  return base;
 }
 
 export function removeCartItemLS(itemSelection: MenuItemSelection) {
@@ -111,6 +136,9 @@ export function addCartItemLS(itemSelection: MenuItemSelection) {
   const currentCartItem = currentCart.items[cartItemId] ?? { quantity: 0 };
 
   currentCartItem.quantity += itemSelection.quantity;
+  if (itemSelection.specialInstructions?.trim()) {
+    currentCartItem.specialInstructions = itemSelection.specialInstructions.trim();
+  }
 
   currentCart.items[cartItemId] = currentCartItem;
 
@@ -143,7 +171,8 @@ export function updateCartItemQuantityLS(skuId: string, quantity: number) {
   if (quantity <= 0) {
     delete currentCart.items[skuId];
   } else {
-    currentCart.items[skuId] = { quantity };
+    const existing = currentCart.items[skuId];
+    currentCart.items[skuId] = { quantity, specialInstructions: existing?.specialInstructions };
   }
 
   localStorage.setItem(CART_KEY, JSON.stringify(currentCart));
@@ -161,16 +190,18 @@ export function replaceCartItemLS(
 ) {
   const currentCart = getCartLS();
   const newSkuId = getCartItemId(itemSelection);
+  const instructions = itemSelection.specialInstructions?.trim() || undefined;
 
   if (oldSkuId === newSkuId) {
     // Same SKU, just update quantity
-    currentCart.items[newSkuId] = { quantity: itemSelection.quantity };
+    currentCart.items[newSkuId] = { quantity: itemSelection.quantity, specialInstructions: instructions };
   } else {
     // Different SKU - remove old, add new (merging if exists)
     delete currentCart.items[oldSkuId];
     const existingQuantity = currentCart.items[newSkuId]?.quantity ?? 0;
     currentCart.items[newSkuId] = {
       quantity: existingQuantity + itemSelection.quantity,
+      specialInstructions: instructions,
     };
   }
 

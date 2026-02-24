@@ -17,6 +17,7 @@ import {
   type CartItemEditData,
 } from "@/hooks/use-menu-item-form";
 import { Checkbox } from "./ui/checkbox";
+import { Textarea } from "./ui/textarea";
 import { QuantityStepper } from "./quantity-stepper";
 
 export function AddItemCartDialog({
@@ -182,6 +183,21 @@ export function AddItemDialogContent({
             </div>
           );
         }}
+      </form.Field>
+      <form.Field name="specialInstructions">
+        {(field) => (
+          <div className="px-4 py-2">
+            <label className="font-semibold text-lg">
+              Special Instructions
+            </label>
+            <Textarea
+              placeholder="Any special requests?"
+              value={field.state.value}
+              onChange={(e) => field.handleChange(e.target.value)}
+              className="mt-1"
+            />
+          </div>
+        )}
       </form.Field>
       <DialogFooter className="px-2 pt-2 mt-auto border-t-1">
         <form.Field name="quantity">
