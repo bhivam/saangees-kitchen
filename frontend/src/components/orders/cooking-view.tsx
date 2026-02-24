@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { DateSelector } from "./date-selector";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { toLocalDateString } from "@/lib/utils";
+import { MessageSquareText } from "lucide-react";
 
 export function CookingView() {
   const trpc = useTRPC();
@@ -67,11 +68,25 @@ export function CookingView() {
               <CardContent>
                 <ul className="space-y-1">
                   {item.variants.map((variant, idx) => (
-                    <li key={idx} className="flex items-center gap-2">
-                      <span className="font-medium">{variant.totalQuantity} x</span>
-                      <span className="text-muted-foreground">
-                        {variant.modifierDisplay}
-                      </span>
+                    <li key={idx}>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{variant.totalQuantity} x</span>
+                        <span className="text-muted-foreground">
+                          {variant.modifierDisplay}
+                        </span>
+                      </div>
+                      {variant.notes.length > 0 && (
+                        <ul className="ml-8 mt-0.5 space-y-0.5">
+                          {variant.notes.map((note, nIdx) => (
+                            <li key={nIdx} className="flex items-center gap-1.5 text-sm">
+                              <MessageSquareText className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                              <span className="italic text-amber-700 dark:text-amber-400">
+                                &ldquo;{note.text}&rdquo; ({note.quantity})
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </li>
                   ))}
                 </ul>

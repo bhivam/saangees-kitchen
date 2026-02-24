@@ -41,11 +41,13 @@ export function AddItemCartDialog({
           <Plus />
         </Button>
       </DialogTrigger>
-      <AddItemDialogContent
-        menuItem={menuItem}
-        menuEntryId={menuEntryId}
-        setOpen={setOpen}
-      />
+      {open && (
+        <AddItemDialogContent
+          menuItem={menuItem}
+          menuEntryId={menuEntryId}
+          setOpen={setOpen}
+        />
+      )}
     </Dialog>
   );
 }
