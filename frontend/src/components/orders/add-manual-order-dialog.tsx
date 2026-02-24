@@ -27,6 +27,7 @@ import { formatCents, toLocalDateString } from "@/lib/utils";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/style.css";
 import { Checkbox } from "../ui/checkbox";
+import { Textarea } from "../ui/textarea";
 import {
   formatDate,
   type MenuEntry,
@@ -46,6 +47,7 @@ type OrderItem = {
   modifierOptionIds: string[];
   modifierNames: string[];
   unitPrice: number;
+  specialInstructions?: string;
 };
 
 // TODO deprecate this.
@@ -156,6 +158,7 @@ function AddManualOrderDialogContent({
       unitPrice:
         item.itemPrice +
         item.modifiers.reduce((sum, m) => sum + m.optionPrice, 0),
+      specialInstructions: item.specialInstructions ?? undefined,
     }));
   });
   const [step, setStep] = useState<"user" | "items" | "addItem">(
@@ -171,6 +174,7 @@ function AddManualOrderDialogContent({
     Record<string, string[]>
   >({});
   const [itemQuantity, setItemQuantity] = useState(1);
+  const [itemSpecialInstructions, setItemSpecialInstructions] = useState("");
   const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({});
   const [allItemsExpanded, setAllItemsExpanded] = useState(false);
   const [addItemDialogOpen, setAddItemDialogOpen] = useState(false);
@@ -320,12 +324,14 @@ function AddManualOrderDialogContent({
           allSelectedOptions,
         ),
         unitPrice,
+        specialInstructions: itemSpecialInstructions.trim() || undefined,
       },
     ]);
 
     setSelectedMenuEntry(null);
     setModifierSelections({});
     setItemQuantity(1);
+    setItemSpecialInstructions("");
     setStep("items");
   };
 
@@ -411,6 +417,7 @@ function AddManualOrderDialogContent({
         menuEntryId: item.menuEntryId,
         quantity: item.quantity,
         modifierOptionIds: item.modifierOptionIds,
+        specialInstructions: item.specialInstructions,
       }));
       updateOrderMutation.mutate({
         orderId: dataAndMode.data.id,
@@ -421,6 +428,7 @@ function AddManualOrderDialogContent({
         menuEntryId: item.menuEntryId,
         quantity: item.quantity,
         modifierOptionIds: item.modifierOptionIds,
+        specialInstructions: item.specialInstructions,
       }));
       createOrderMutation.mutate({
         userId: selectedUserId,
@@ -847,6 +855,17 @@ function AddManualOrderDialogContent({
                 </div>
               </div>
 
+              {/* Special Instructions */}
+              <div>
+                <Label>Special Instructions</Label>
+                <Textarea
+                  placeholder="Any special requests?"
+                  value={itemSpecialInstructions}
+                  onChange={(e) => setItemSpecialInstructions(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+
               {/* Price preview */}
               <div className="flex justify-between font-medium pt-2 border-t">
                 <span>Item Total</span>
@@ -945,6 +964,11 @@ function AddManualOrderDialogContent({
                       {item.modifierNames.length > 0 && (
                         <div className="text-sm text-muted-foreground">
                           {item.modifierNames.join(", ")}
+                        </div>
+                      )}
+                      {item.specialInstructions && (
+                        <div className="text-sm text-muted-foreground italic">
+                          Note: {item.specialInstructions}
                         </div>
                       )}
                       {pastDue && dataAndMode.mode !== "view" && (

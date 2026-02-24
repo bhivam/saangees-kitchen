@@ -32,6 +32,7 @@ type EditingItem = {
   menuEntry: MenuEntry;
   quantity: number;
   modifierSelections: Record<string, string[]>;
+  specialInstructions?: string;
 };
 
 function Cart() {
@@ -210,6 +211,7 @@ function Cart() {
       menuEntry: entry,
       quantity: item.quantity ?? 1,
       modifierSelections,
+      specialInstructions: item.specialInstructions,
     });
   };
 
@@ -262,6 +264,11 @@ function Cart() {
                             )
                             .join(", ")}
                         </p>
+                        {item.specialInstructions && (
+                          <p className="text-sm italic text-muted-foreground">
+                            Note: {item.specialInstructions}
+                          </p>
+                        )}
                         <p>{formatCents(item.totalPrice)}</p>
                       </div>
                       <QuantityStepper
@@ -333,6 +340,7 @@ function Cart() {
                 skuId: editingItem.skuId,
                 quantity: editingItem.quantity,
                 modifierSelections: editingItem.modifierSelections,
+                specialInstructions: editingItem.specialInstructions,
               }}
             />
           </DialogContent>

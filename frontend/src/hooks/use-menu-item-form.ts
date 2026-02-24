@@ -43,12 +43,14 @@ export type MenuItemSelection = {
   itemId: string;
   menuEntryId: string;
   modifierSelections: Record<string, string[]>;
+  specialInstructions?: string;
 };
 
 export type CartItemEditData = {
   skuId: string;
   quantity: number;
   modifierSelections: Record<string, string[]>;
+  specialInstructions?: string;
 };
 
 export function useMenuItemForm(
@@ -78,6 +80,7 @@ export function useMenuItemForm(
             [],
           ]),
         ) as Record<string, string[]>),
+      specialInstructions: editData?.specialInstructions ?? "",
     } as Omit<MenuItemSelection, "itemId" | "menuEntryId">,
     validators: {
       onSubmit: validationSchema,

@@ -71,6 +71,7 @@ function hydrateCartFromMenu(cart: Cart, menuEntries: MenuEntry[]) {
             totalPrice,
             modifierOptionIds: selectedModifierOptionIds,
             quantity: metadata?.quantity ?? 1,
+            specialInstructions: metadata?.specialInstructions,
           },
         ];
       } catch {
@@ -162,6 +163,7 @@ function Checkout() {
       menuEntryId: item.menuEntryId,
       quantity: item.quantity,
       modifierOptionIds: item.modifierOptionIds,
+      specialInstructions: item.specialInstructions,
     }));
     createOrderMutation.mutate({ items: orderItems });
   };
@@ -192,6 +194,11 @@ function Checkout() {
                   <div>
                     <p className="font-semibold">{item.name}</p>
                     <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
+                    {item.specialInstructions && (
+                      <p className="text-sm italic text-gray-500">
+                        Note: {item.specialInstructions}
+                      </p>
+                    )}
                   </div>
                   <p>{formatCents(item.totalPrice * item.quantity)}</p>
                 </div>

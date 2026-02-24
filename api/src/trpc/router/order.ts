@@ -35,6 +35,7 @@ export const ordersRouter = createTRPCRouter({
             menuEntryId: z.uuid(),
             quantity: z.number().int().positive(),
             modifierOptionIds: z.array(z.uuid()),
+            specialInstructions: z.string().optional(),
           }),
         ),
       }),
@@ -122,6 +123,7 @@ export const ordersRouter = createTRPCRouter({
               menuEntryId: item.menuEntryId,
               quantity: item.quantity,
               itemPrice: entry.menuItem.basePrice,
+              specialInstructions: item.specialInstructions ?? null,
             })
             .returning();
 
@@ -764,6 +766,7 @@ export const ordersRouter = createTRPCRouter({
             menuEntryId: z.uuid(),
             quantity: z.number().int().positive(),
             modifierOptionIds: z.array(z.uuid()),
+            specialInstructions: z.string().optional(),
           }),
         ),
       }),
@@ -852,6 +855,7 @@ export const ordersRouter = createTRPCRouter({
               menuEntryId: item.menuEntryId,
               quantity: item.quantity,
               itemPrice: entry.menuItem.basePrice,
+              specialInstructions: item.specialInstructions ?? null,
             })
             .returning();
 
@@ -888,6 +892,7 @@ export const ordersRouter = createTRPCRouter({
             menuEntryId: z.uuid(),
             quantity: z.number().int().positive(),
             modifierOptionIds: z.array(z.uuid()),
+            specialInstructions: z.string().optional(),
           }),
         ),
       }),
@@ -1059,6 +1064,7 @@ export const ordersRouter = createTRPCRouter({
                 menuEntryId: item.menuEntryId,
                 quantity: item.quantity,
                 itemPrice: entry.menuItem.basePrice,
+                specialInstructions: item.specialInstructions ?? null,
               })
               .where(eq(orderItems.id, item.orderItemId));
 
@@ -1085,6 +1091,7 @@ export const ordersRouter = createTRPCRouter({
                 menuEntryId: item.menuEntryId,
                 quantity: item.quantity,
                 itemPrice: entry.menuItem.basePrice,
+                specialInstructions: item.specialInstructions ?? null,
               })
               .returning();
 
