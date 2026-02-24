@@ -167,6 +167,177 @@ export const ordersRouter = createTRPCRouter({
     });
   }),
 
+  // Customer-facing procedure to get their own orders grouped by week
+  // Orders can only span one week, so we classify each order entirely as
+  // "this week" or "past" based on any of its item dates
+  getMyOrders: protectedProcedure.query(async ({ ctx }) => {
+    // Calculate week boundaries: most recent Sunday through Saturday
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 = Sunday
+    const sunday = new Date(today);
+    sunday.setDate(today.getDate() - dayOfWeek);
+    sunday.setHours(0, 0, 0, 0);
+    const saturday = new Date(sunday);
+    saturday.setDate(sunday.getDate() + 6);
+
+    const sundayStr = normalizeDate(sunday)!;
+    const saturdayStr = normalizeDate(saturday)!;
+
+    // Fetch all orders for current user with items and menu entries
+    const userOrders = await db.query.orders.findMany({
+      where: eq(orders.userId, ctx.user.id),
+      with: {
+        items: {
+          with: {
+            menuEntry: {
+              with: { menuItem: true },
+            },
+            modifiers: {
+              with: { modifierOption: true },
+            },
+          },
+        },
+      },
+      orderBy: (orders, { desc }) => [desc(orders.createdAt)],
+    });
+
+    // Format day labels helper
+    const formatDayLabel = (dateStr: string) => {
+      const parts = dateStr.split("-").map(Number);
+      const year = parts[0] ?? 0;
+      const month = parts[1] ?? 1;
+      const day = parts[2] ?? 1;
+      const date = new Date(year, month - 1, day);
+      return date.toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "short",
+        day: "numeric",
+      });
+    };
+
+    // Classify orders and group this week's items by date
+    const thisWeekOrders: typeof userOrders = [];
+    const pastWeeksOrders: typeof userOrders = [];
+
+    for (const order of userOrders) {
+      // Use the first item's date to classify the order (all items are in same week)
+      const firstItemDate = order.items[0]
+        ? normalizeDate(order.items[0].menuEntry.date)
+        : null;
+
+      if (!firstItemDate) continue;
+
+      if (firstItemDate >= sundayStr && firstItemDate <= saturdayStr) {
+        thisWeekOrders.push(order);
+      } else if (firstItemDate < sundayStr) {
+        pastWeeksOrders.push(order);
+      }
+    }
+
+    // Calculate totals for each period
+    const thisWeekTotal = thisWeekOrders.reduce(
+      (sum, order) => sum + (order.total || 0),
+      0,
+    );
+    const thisWeekTotalPaid = thisWeekOrders.reduce(
+      (sum, order) => sum + order.centsPaid,
+      0,
+    );
+    const thisWeekTotalOwed = thisWeekTotal - thisWeekTotalPaid;
+
+    const pastWeeksTotalOwed = pastWeeksOrders.reduce(
+      (sum, order) => sum + (order.total || 0) - order.centsPaid,
+      0,
+    );
+
+    // Group this week's items by date, then aggregate by SKU
+    // SKU = menuEntryId + menuItemId + sorted modifier option IDs
+    const itemsByDate = new Map<
+      string,
+      Map<
+        string,
+        {
+          menuItemName: string;
+          quantity: number;
+          unitPrice: number; // itemPrice + modifiers (per unit)
+          modifiers: Array<{ name: string; optionPrice: number }>;
+        }
+      >
+    >();
+
+    for (const order of thisWeekOrders) {
+      for (const item of order.items) {
+        const itemDate = normalizeDate(item.menuEntry.date);
+        if (!itemDate) continue;
+
+        // Build SKU key: menuEntryId:menuItemId|sorted modifier option IDs
+        const sortedModifierIds = item.modifiers
+          .map((m) => m.modifierOptionId)
+          .sort()
+          .join(",");
+        const skuKey = `${item.menuEntryId}:${item.menuEntry.menuItemId}|${sortedModifierIds}`;
+
+        const modifierTotal = item.modifiers.reduce(
+          (sum, m) => sum + m.optionPrice,
+          0,
+        );
+        const unitPrice = item.itemPrice + modifierTotal;
+
+        let dateItems = itemsByDate.get(itemDate);
+        if (!dateItems) {
+          dateItems = new Map();
+          itemsByDate.set(itemDate, dateItems);
+        }
+
+        const existingItem = dateItems.get(skuKey);
+        if (existingItem) {
+          // Aggregate: add quantity
+          existingItem.quantity += item.quantity;
+        } else {
+          dateItems.set(skuKey, {
+            menuItemName: item.menuEntry.menuItem.name,
+            quantity: item.quantity,
+            unitPrice,
+            modifiers: item.modifiers.map((m) => ({
+              name: m.modifierOption.name,
+              optionPrice: m.optionPrice,
+            })),
+          });
+        }
+      }
+    }
+
+    // Build ordersByDate array, sorted by date
+    const ordersByDate = Array.from(itemsByDate.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, skuMap]) => ({
+        date,
+        dayLabel: formatDayLabel(date),
+        items: Array.from(skuMap.values()).map((item) => ({
+          menuItemName: item.menuItemName,
+          quantity: item.quantity,
+          modifiers: item.modifiers,
+          lineTotal: item.unitPrice * item.quantity,
+        })),
+      }));
+
+    return {
+      thisWeek: {
+        startDate: sundayStr,
+        endDate: saturdayStr,
+        total: thisWeekTotal,
+        totalPaid: thisWeekTotalPaid,
+        totalOwed: thisWeekTotalOwed,
+        ordersByDate,
+      },
+      pastWeeks: {
+        totalOwed: pastWeeksTotalOwed,
+        orderCount: pastWeeksOrders.length,
+      },
+      grandTotalOwed: thisWeekTotalOwed + pastWeeksTotalOwed,
+    };
+  }),
+
   getDatesWithOrders: adminProcedure
     .input(
       z.object({

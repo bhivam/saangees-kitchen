@@ -22,7 +22,6 @@ import "react-day-picker/style.css";
 import { Checkbox } from "../ui/checkbox";
 import {
   formatDate,
-  getWeekDates,
   type MenuEntry,
   type MenuItem,
 } from "../customer-menu-view";
@@ -41,6 +40,20 @@ type OrderItem = {
   modifierNames: string[];
   unitPrice: number;
 };
+
+// TODO deprecate this.
+function getWeekDates(startDate: Date, days: number = 7): string[] {
+  const dates: string[] = [];
+  for (let i = 0; i < days; i++) {
+    const date = new Date(startDate);
+    date.setDate(date.getDate() + i);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    dates.push(`${year}-${month}-${day}`);
+  }
+  return dates;
+}
 
 export function AddManualOrderDialog({
   open: controlledOpen,

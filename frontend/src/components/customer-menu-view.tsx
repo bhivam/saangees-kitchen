@@ -11,22 +11,9 @@ import { Sheet, SheetTrigger } from "./ui/sheet";
 import { useState } from "react";
 import { HomeSheetContent } from "./home-sheet-content";
 
-export type MenuEntry = RouterOutputs["menu"]["getByDateRange"][number];
+export type MenuEntry = RouterOutputs["menu"]["getWeekMenu"][number];
 
 export type MenuItem = MenuEntry["menuItem"];
-
-export function getWeekDates(startDate: Date, days: number = 7): string[] {
-  const dates: string[] = [];
-  for (let i = 0; i < days; i++) {
-    const date = new Date(startDate);
-    date.setDate(date.getDate() + i);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    dates.push(`${year}-${month}-${day}`);
-  }
-  return dates;
-}
 
 export function formatDate(dateString: string): string {
   const date = new Date(dateString + "T00:00:00");
@@ -40,6 +27,27 @@ export function formatDate(dateString: string): string {
 function getDayName(dateString: string): string {
   const date = new Date(dateString + "T00:00:00");
   return date.toLocaleDateString("en-US", { weekday: "long" });
+}
+
+function getOrdinalSuffix(day: number): string {
+  if (day >= 11 && day <= 13) return "th";
+  switch (day % 10) {
+    case 1:
+      return "st";
+    case 2:
+      return "nd";
+    case 3:
+      return "rd";
+    default:
+      return "th";
+  }
+}
+
+function formatDateWithOrdinal(dateString: string): string {
+  const date = new Date(dateString + "T00:00:00");
+  const month = date.toLocaleDateString("en-US", { month: "short" });
+  const day = date.getDate();
+  return `${month} ${day}${getOrdinalSuffix(day)}`;
 }
 
 function groupMenusByDate(menuEntries: MenuEntry[]): Map<string, MenuEntry[]> {
@@ -170,15 +178,8 @@ function LoadingSkeleton() {
 export function CustomerMenuView() {
   const trpc = useTRPC();
 
-  const today = new Date();
-  const currentWeekDates = getWeekDates(today, 7);
-
-  const allDates = [...currentWeekDates];
-
   const { data: menuEntries, isLoading } = useQuery(
-    trpc.menu.getByDateRange.queryOptions({
-      dates: allDates,
-    }),
+    trpc.menu.getWeekMenu.queryOptions(),
   );
 
   if (isLoading) {
@@ -189,15 +190,30 @@ export function CustomerMenuView() {
     ? groupMenusByDate(menuEntries)
     : new Map<string, MenuEntry[]>();
 
-  const daysWithItems = currentWeekDates.filter((date) => {
-    const entries = groupedMenus.get(date);
-    return entries && entries.length > 0;
-  });
+  // Get sorted list of dates with items
+  const daysWithItems = menuEntries
+    ? [
+        ...new Set(
+          menuEntries.map((e) => e.date).filter((d): d is string => d !== null),
+        ),
+      ].sort()
+    : [];
+
+  // Calculate date range text
+  const dateRangeText =
+    daysWithItems.length > 0
+      ? daysWithItems.length === 1
+        ? formatDateWithOrdinal(daysWithItems[0])
+        : `${formatDateWithOrdinal(daysWithItems[0])} - ${formatDateWithOrdinal(daysWithItems[daysWithItems.length - 1])}`
+      : null;
 
   return (
     <div className="min-h-screen bg-menu-bg font-serif">
       <Header />
       <div className="container max-w-4xl mx-auto px-4">
+        {dateRangeText && (
+          <p className="text-gray-800 text-center py-4">{dateRangeText}</p>
+        )}
         <div className="space-y-4">
           {daysWithItems.map((date) => {
             const entries = groupedMenus.get(date)!;
