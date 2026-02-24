@@ -21,6 +21,11 @@ const sharedColumns = {
   deletedAt: timestamp("deleted_at"),
 };
 
+export const test = pgTable("test", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ...sharedColumns,
+});
+
 export const menuItems = pgTable("menu_items", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(),
