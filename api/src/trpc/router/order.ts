@@ -942,7 +942,14 @@ export const ordersRouter = createTRPCRouter({
         });
       }
 
-      // Fetch existing order items with their menu entries for due date validation
+      if (existingOrder.centsPaid > 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot modify an order that has payments",
+        });
+      }
+
+      // Fetch existing order items with their menu entries
       const existingOrderItems = await db.query.orderItems.findMany({
         where: eq(orderItems.orderId, input.orderId),
         with: {
@@ -974,10 +981,6 @@ export const ordersRouter = createTRPCRouter({
           : [];
       const optionMap = new Map(modifierOptionsData.map((o) => [o.id, o]));
 
-      // Get today's date for due date validation
-      const today = normalizeDate(new Date());
-
-      // Validate items and check for past-due modifications
       let total = 0;
       for (const item of input.items) {
         const entry = entryMap.get(item.menuEntryId);
@@ -986,38 +989,6 @@ export const ordersRouter = createTRPCRouter({
             code: "BAD_REQUEST",
             message: `Menu entry ${item.menuEntryId} not found`,
           });
-        }
-
-        // Due date validation: check if item is past due and being modified
-        const entryDate = normalizeDate(entry.date);
-        if (entryDate && today && entryDate < today && item.orderItemId) {
-          // This is an existing item for a past date - check if it's being modified
-          const existingItem = existingItemMap.get(item.orderItemId);
-          if (existingItem) {
-            // Compare quantities
-            if (existingItem.quantity !== item.quantity) {
-              throw new TRPCError({
-                code: "BAD_REQUEST",
-                message: `Cannot modify item "${entry.menuItem.name}" - due date has passed`,
-              });
-            }
-            // Compare modifier options
-            const existingModifierIds = existingItem.modifiers
-              .map((m) => m.modifierOptionId)
-              .sort();
-            const newModifierIds = [...item.modifierOptionIds].sort();
-            if (
-              existingModifierIds.length !== newModifierIds.length ||
-              !existingModifierIds.every(
-                (id, idx) => id === newModifierIds[idx],
-              )
-            ) {
-              throw new TRPCError({
-                code: "BAD_REQUEST",
-                message: `Cannot modify item "${entry.menuItem.name}" - due date has passed`,
-              });
-            }
-          }
         }
 
         let itemTotal = entry.menuItem.basePrice;
@@ -1047,20 +1018,6 @@ export const ordersRouter = createTRPCRouter({
         const itemsToDelete = existingOrderItems.filter(
           (i) => !keptItemIds.has(i.id),
         );
-
-        // Validate that we're not deleting past-due items
-        for (const item of itemsToDelete) {
-          const entryDate = normalizeDate(item.menuEntry.date);
-          if (entryDate && today && entryDate < today) {
-            const entry = entryMap.get(item.menuEntryId) ?? {
-              menuItem: { name: "Unknown item" },
-            };
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message: `Cannot remove item "${entry.menuItem.name}" - due date has passed`,
-            });
-          }
-        }
 
         // Delete modifiers and items that are no longer in the list
         if (itemsToDelete.length > 0) {

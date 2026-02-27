@@ -8,14 +8,7 @@ import {
   DialogTrigger,
 } from "../ui/dialog";
 import { Button } from "../ui/button";
-import {
-  ChevronDown,
-  ChevronRight,
-  Plus,
-  Trash2,
-  UserPlus,
-  X,
-} from "lucide-react";
+import { CalendarDays, Plus, Search, Trash2, UserPlus } from "lucide-react";
 import { QuantityStepper } from "../quantity-stepper";
 import { useState, useMemo } from "react";
 import { useTRPC, type RouterOutputs } from "@/trpc";
@@ -28,13 +21,8 @@ import { DayPicker } from "react-day-picker";
 import "react-day-picker/style.css";
 import { Checkbox } from "../ui/checkbox";
 import { Textarea } from "../ui/textarea";
-import {
-  formatDate,
-  type MenuEntry,
-  type MenuItem,
-} from "../customer-menu-view";
-import { AddItemDialog } from "../add-item-dialog";
-import type { MenuItemResult } from "@/hooks/use-add-item-form";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import { formatDate, type MenuEntry, type MenuItem } from "../customer-menu-view";
 
 type Order = RouterOutputs["orders"]["getOrders"][number];
 
@@ -50,18 +38,210 @@ type OrderItem = {
   specialInstructions?: string;
 };
 
-// TODO deprecate this.
-function getWeekDates(startDate: Date, days: number = 7): string[] {
-  const dates: string[] = [];
-  for (let i = 0; i < days; i++) {
-    const date = new Date(startDate);
-    date.setDate(date.getDate() + i);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    dates.push(`${year}-${month}-${day}`);
-  }
-  return dates;
+function ModifierSelectionDialog({
+  entry,
+  onClose,
+  onAddToOrder,
+}: {
+  entry: MenuEntry;
+  onClose: () => void;
+  onAddToOrder: (item: OrderItem) => void;
+}) {
+  const [modifierSelections, setModifierSelections] = useState<
+    Record<string, string[]>
+  >(() => {
+    const initial: Record<string, string[]> = {};
+    for (const mg of entry.menuItem.modifierGroups) {
+      initial[mg.modifierGroup.id] = [];
+    }
+    return initial;
+  });
+  const [quantity, setQuantity] = useState(1);
+  const [specialInstructions, setSpecialInstructions] = useState("");
+
+  const calculateItemPrice = (selectedOptions: string[]) => {
+    let price = entry.menuItem.basePrice;
+    for (const optionId of selectedOptions) {
+      for (const mg of entry.menuItem.modifierGroups) {
+        const option = mg.modifierGroup.options.find((o) => o.id === optionId);
+        if (option) {
+          price += option.priceDelta;
+        }
+      }
+    }
+    return price;
+  };
+
+  const getModifierNames = (selectedOptions: string[]) => {
+    const names: string[] = [];
+    for (const optionId of selectedOptions) {
+      for (const mg of entry.menuItem.modifierGroups) {
+        const option = mg.modifierGroup.options.find((o) => o.id === optionId);
+        if (option) {
+          names.push(option.name);
+        }
+      }
+    }
+    return names;
+  };
+
+  const allSelectedOptions = Object.values(modifierSelections).flat();
+  const unitPrice = calculateItemPrice(allSelectedOptions);
+
+  const handleAdd = () => {
+    onAddToOrder({
+      menuEntryId: entry.id,
+      menuEntryDate: entry.date,
+      menuItemName: entry.menuItem.name,
+      quantity,
+      modifierOptionIds: allSelectedOptions,
+      modifierNames: getModifierNames(allSelectedOptions),
+      unitPrice,
+      specialInstructions: specialInstructions.trim() || undefined,
+    });
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        className="sm:max-w-125 max-h-[80vh] overflow-y-auto"
+        onPointerDownOutside={(e) => e.preventDefault()}
+      >
+        <DialogHeader>
+          <DialogTitle>{entry.menuItem.name}</DialogTitle>
+          <DialogDescription>
+            {formatDate(entry.date)} &middot;{" "}
+            {formatCents(entry.menuItem.basePrice)}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {entry.menuItem.modifierGroups.length > 0 && (
+            <div className="space-y-4">
+              {entry.menuItem.modifierGroups
+                .sort((a, b) => a.sortOrder - b.sortOrder)
+                .map(({ modifierGroup }) => (
+                  <div key={modifierGroup.id} className="space-y-2">
+                    <div>
+                      <h4 className="font-medium">{modifierGroup.name}</h4>
+                      <p className="text-sm text-muted-foreground">
+                        {modifierGroup.minSelect === 0
+                          ? "Optional"
+                          : `Select at least ${modifierGroup.minSelect}`}
+                        {modifierGroup.maxSelect &&
+                          ` · Select up to ${modifierGroup.maxSelect}`}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      {modifierGroup.options.map((option) => {
+                        const isSelected =
+                          modifierSelections[modifierGroup.id]?.includes(
+                            option.id,
+                          ) ?? false;
+                        const selectedCount =
+                          modifierSelections[modifierGroup.id]?.length ?? 0;
+                        const isDisabled =
+                          !isSelected &&
+                          modifierGroup.maxSelect !== null &&
+                          selectedCount >= modifierGroup.maxSelect;
+
+                        return (
+                          <label
+                            key={option.id}
+                            className="flex items-center gap-3 p-2 rounded hover:bg-muted cursor-pointer"
+                          >
+                            <Checkbox
+                              checked={isSelected}
+                              disabled={isDisabled}
+                              onCheckedChange={(checked) => {
+                                setModifierSelections((prev) => {
+                                  const current =
+                                    prev[modifierGroup.id] ?? [];
+                                  if (checked) {
+                                    return {
+                                      ...prev,
+                                      [modifierGroup.id]: [
+                                        ...current,
+                                        option.id,
+                                      ],
+                                    };
+                                  } else {
+                                    return {
+                                      ...prev,
+                                      [modifierGroup.id]: current.filter(
+                                        (id) => id !== option.id,
+                                      ),
+                                    };
+                                  }
+                                });
+                              }}
+                            />
+                            <span className="flex-1">{option.name}</span>
+                            {option.priceDelta !== 0 && (
+                              <span className="text-muted-foreground">
+                                {option.priceDelta > 0 ? "+" : ""}
+                                {formatCents(option.priceDelta)}
+                              </span>
+                            )}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+
+          {/* Quantity */}
+          <div className="flex items-center gap-4">
+            <Label>Quantity</Label>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                disabled={quantity <= 1}
+              >
+                -
+              </Button>
+              <span className="w-8 text-center">{quantity}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setQuantity(quantity + 1)}
+              >
+                +
+              </Button>
+            </div>
+          </div>
+
+          {/* Special Instructions */}
+          <div>
+            <Label>Special Instructions</Label>
+            <Textarea
+              placeholder="Any special requests?"
+              value={specialInstructions}
+              onChange={(e) => setSpecialInstructions(e.target.value)}
+              className="mt-1"
+            />
+          </div>
+
+          {/* Price preview */}
+          <div className="flex justify-between font-medium pt-2 border-t">
+            <span>Item Total</span>
+            <span>{formatCents(unitPrice * quantity)}</span>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={handleAdd}>Add to Order</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 export function AddManualOrderDialog({
@@ -161,23 +341,14 @@ function AddManualOrderDialogContent({
       specialInstructions: item.specialInstructions ?? undefined,
     }));
   });
-  const [step, setStep] = useState<"user" | "items" | "addItem">(
+  const [step, setStep] = useState<"user" | "items">(
     dataAndMode.mode === "create" ? "user" : "items",
   );
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(
-    () => new Date(),
-  );
-  const [selectedMenuEntry, setSelectedMenuEntry] = useState<MenuEntry | null>(
-    null,
-  );
-  const [modifierSelections, setModifierSelections] = useState<
-    Record<string, string[]>
-  >({});
-  const [itemQuantity, setItemQuantity] = useState(1);
-  const [itemSpecialInstructions, setItemSpecialInstructions] = useState("");
-  const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({});
-  const [allItemsExpanded, setAllItemsExpanded] = useState(false);
-  const [addItemDialogOpen, setAddItemDialogOpen] = useState(false);
+  const [browseDate, setBrowseDate] = useState<Date>(() => new Date());
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [itemSearch, setItemSearch] = useState("");
+  const [modifierDialogEntry, setModifierDialogEntry] =
+    useState<MenuEntry | null>(null);
   const [showCreateUser, setShowCreateUser] = useState(false);
   const [newPhone, setNewPhone] = useState("");
   const [newFirstName, setNewFirstName] = useState("");
@@ -188,7 +359,16 @@ function AddManualOrderDialogContent({
   );
   const selectedUser = usersQuery.data?.find((u) => u.id === selectedUserId);
 
-  const dates = useMemo(() => getWeekDates(new Date(), 30), []);
+  const dates = useMemo(() => {
+    const result: string[] = [];
+    for (let i = 0; i < 30; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() + i);
+      result.push(toLocalDateString(date));
+    }
+    return result;
+  }, []);
+
   const menuEntriesQuery = useQuery(
     trpc.menu.getByDateRange.queryOptions({ dates, includeCustom: true }),
   );
@@ -257,82 +437,87 @@ function AddManualOrderDialogContent({
     return items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
   }, [items]);
 
-  const next7Days = useMemo(() => getWeekDates(new Date(), 7), []);
+  const browseDateStr = toLocalDateString(browseDate);
 
-  const menuEntriesByDay = useMemo(() => {
-    if (!menuEntriesQuery.data) return new Map<string, MenuEntry[]>();
-    const grouped = new Map<string, MenuEntry[]>();
-    for (const date of next7Days) {
-      grouped.set(date, []);
-    }
-    for (const entry of menuEntriesQuery.data) {
-      if (next7Days.includes(entry.date)) {
-        grouped.get(entry.date)!.push(entry);
-      }
-    }
-    return grouped;
-  }, [menuEntriesQuery.data, next7Days]);
+  const menuEntriesForSelectedDay = useMemo(() => {
+    if (!menuEntriesQuery.data) return [];
+    return menuEntriesQuery.data.filter((e) => e.date === browseDateStr);
+  }, [menuEntriesQuery.data, browseDateStr]);
 
-  const calculateItemPrice = (
-    menuItem: MenuItem,
-    selectedOptions: string[],
-  ) => {
-    let price = menuItem.basePrice;
-    for (const optionId of selectedOptions) {
-      for (const mg of menuItem.modifierGroups) {
-        const option = mg.modifierGroup.options.find((o) => o.id === optionId);
-        if (option) {
-          price += option.priceDelta;
-        }
-      }
-    }
-    return price;
-  };
-
-  const getModifierNames = (menuItem: MenuItem, selectedOptions: string[]) => {
-    const names: string[] = [];
-    for (const optionId of selectedOptions) {
-      for (const mg of menuItem.modifierGroups) {
-        const option = mg.modifierGroup.options.find((o) => o.id === optionId);
-        if (option) {
-          names.push(option.name);
-        }
-      }
-    }
-    return names;
-  };
-
-  const addItemToOrder = () => {
-    if (!selectedMenuEntry) return;
-
-    const allSelectedOptions = Object.values(modifierSelections).flat();
-    const unitPrice = calculateItemPrice(
-      selectedMenuEntry.menuItem,
-      allSelectedOptions,
+  const searchedMenuItems = useMemo(() => {
+    if (!itemSearch.trim() || !menuItemsQuery.data) return [];
+    const query = itemSearch.toLowerCase();
+    return menuItemsQuery.data.filter((item) =>
+      item.name.toLowerCase().includes(query),
     );
+  }, [menuItemsQuery.data, itemSearch]);
 
-    setItems([
-      ...items,
-      {
-        menuEntryId: selectedMenuEntry.id,
-        menuEntryDate: selectedMenuEntry.date,
-        menuItemName: selectedMenuEntry.menuItem.name,
-        quantity: itemQuantity,
-        modifierOptionIds: allSelectedOptions,
-        modifierNames: getModifierNames(
-          selectedMenuEntry.menuItem,
-          allSelectedOptions,
-        ),
-        unitPrice,
-        specialInstructions: itemSpecialInstructions.trim() || undefined,
-      },
-    ]);
+  const hasRequiredModifiers = (menuItem: MenuItem) => {
+    return menuItem.modifierGroups.some(
+      (mg) => mg.modifierGroup.minSelect > 0,
+    );
+  };
 
-    setSelectedMenuEntry(null);
-    setModifierSelections({});
-    setItemQuantity(1);
-    setItemSpecialInstructions("");
-    setStep("items");
+  const quickAddItem = (entry: MenuEntry) => {
+    setItems((prev) => {
+      const existing = prev.findIndex(
+        (i) =>
+          i.menuEntryId === entry.id &&
+          i.modifierOptionIds.length === 0 &&
+          !i.specialInstructions,
+      );
+      if (existing !== -1) {
+        return prev.map((item, i) =>
+          i === existing ? { ...item, quantity: item.quantity + 1 } : item,
+        );
+      }
+      return [
+        ...prev,
+        {
+          menuEntryId: entry.id,
+          menuEntryDate: entry.date,
+          menuItemName: entry.menuItem.name,
+          quantity: 1,
+          modifierOptionIds: [],
+          modifierNames: [],
+          unitPrice: entry.menuItem.basePrice,
+        },
+      ];
+    });
+  };
+
+  const quickAddArbitraryItem = async (item: MenuItem) => {
+    try {
+      const entry = await createCustomEntryMutation.mutateAsync({
+        date: browseDateStr,
+        menuItemId: item.id,
+      });
+      quickAddItem(entry);
+      queryClient.invalidateQueries({
+        queryKey: trpc.menu.getByDateRange.queryKey(),
+      });
+    } catch {
+      toast.error("Failed to add item", { position: "bottom-center" });
+    }
+  };
+
+  const openModifierDialogForEntry = (entry: MenuEntry) => {
+    setModifierDialogEntry(entry);
+  };
+
+  const openModifierDialogForItem = async (item: MenuItem) => {
+    try {
+      const entry = await createCustomEntryMutation.mutateAsync({
+        date: browseDateStr,
+        menuItemId: item.id,
+      });
+      queryClient.invalidateQueries({
+        queryKey: trpc.menu.getByDateRange.queryKey(),
+      });
+      setModifierDialogEntry(entry);
+    } catch {
+      toast.error("Failed to create entry", { position: "bottom-center" });
+    }
   };
 
   const removeItem = (index: number) => {
@@ -347,66 +532,8 @@ function AddManualOrderDialogContent({
     );
   };
 
-  const isItemPastDue = (item: OrderItem) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const entryDate = new Date(item.menuEntryDate + "T00:00:00");
-    return entryDate < today;
-  };
-
-  const handleNewItemCreated = async (newItem: MenuItemResult) => {
-    const todayStr = toLocalDateString(new Date());
-    try {
-      const entry = await createCustomEntryMutation.mutateAsync({
-        date: todayStr,
-        menuItemId: newItem.id,
-      });
-      setSelectedDate(new Date());
-      setSelectedMenuEntry(entry);
-      const initialSelections: Record<string, string[]> = {};
-      for (const mg of entry.menuItem.modifierGroups) {
-        initialSelections[mg.modifierGroup.id] = [];
-      }
-      setModifierSelections(initialSelections);
-      queryClient.invalidateQueries({
-        queryKey: trpc.menu.getByDateRange.queryKey(),
-      });
-    } catch {
-      toast.error("Failed to create menu entry for new item", {
-        position: "bottom-center",
-      });
-    }
-  };
-
-  const handleSelectEntry = (entry: MenuEntry) => {
-    setSelectedDate(new Date(entry.date + "T00:00:00"));
-    setSelectedMenuEntry(entry);
-    const initialSelections: Record<string, string[]> = {};
-    for (const mg of entry.menuItem.modifierGroups) {
-      initialSelections[mg.modifierGroup.id] = [];
-    }
-    setModifierSelections(initialSelections);
-  };
-
-  const handleSelectMenuItem = async (item: MenuItem) => {
-    try {
-      const entry = await createCustomEntryMutation.mutateAsync({
-        date: toLocalDateString(new Date()),
-        menuItemId: item.id,
-      });
-      setSelectedDate(new Date());
-      setSelectedMenuEntry(entry);
-      const initialSelections: Record<string, string[]> = {};
-      for (const mg of entry.menuItem.modifierGroups) {
-        initialSelections[mg.modifierGroup.id] = [];
-      }
-      setModifierSelections(initialSelections);
-    } catch {
-      toast.error("Failed to create custom entry", {
-        position: "bottom-center",
-      });
-    }
-  };
+  const isLocked =
+    dataAndMode.mode === "edit" && (dataAndMode.data?.centsPaid ?? 0) > 0;
 
   const handleSubmit = () => {
     if (!selectedUserId || items.length === 0) return;
@@ -437,6 +564,19 @@ function AddManualOrderDialogContent({
     }
   };
 
+  const formatBrowseDate = (date: Date) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    const isToday = d.getTime() === today.getTime();
+    const formatted = d.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+    });
+    return isToday ? `Today, ${formatted}` : formatted;
+  };
+
   if (step === "user") {
     const phoneDigits = newPhone.replace(/\D/g, "").slice(0, 10);
     const formattedPhone =
@@ -453,7 +593,7 @@ function AddManualOrderDialogContent({
       newLastName.trim().length > 0;
 
     return (
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-125">
         <DialogHeader>
           <DialogTitle>Select Customer</DialogTitle>
           <DialogDescription>
@@ -572,13 +712,12 @@ function AddManualOrderDialogContent({
                 })
               }
             >
-              {createUserMutation.isPending ? "Creating..." : "Create & Continue"}
+              {createUserMutation.isPending
+                ? "Creating..."
+                : "Create & Continue"}
             </Button>
           ) : (
-            <Button
-              disabled={!selectedUserId}
-              onClick={() => setStep("items")}
-            >
+            <Button disabled={!selectedUserId} onClick={() => setStep("items")}>
               Continue
             </Button>
           )}
@@ -587,316 +726,9 @@ function AddManualOrderDialogContent({
     );
   }
 
-  if (step === "addItem") {
-    return (
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Add Item</DialogTitle>
-          <DialogDescription>Select an item from the menu</DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          {/* Item selection - only shown when no menu entry is selected */}
-          {!selectedMenuEntry && (
-            <div className="space-y-2">
-              {/* DayPicker Calendar */}
-              <div className="flex justify-center border rounded-lg p-2">
-                <DayPicker
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={setSelectedDate}
-                  className="rounded-lg"
-                />
-              </div>
-
-              {/* Menu Items grouped by day (next 7 days) */}
-              <div className="border rounded-md">
-                <div className="p-3 bg-muted font-medium border-b">
-                  Menu Items (7 days)
-                </div>
-                <div className="max-h-48 overflow-y-auto">
-                  {next7Days.map((date) => {
-                    const entries = menuEntriesByDay.get(date) ?? [];
-                    const isExpanded = expandedDays[date] ?? false;
-                    return (
-                      <div key={date} className="border-b last:border-b-0">
-                        <button
-                          type="button"
-                          className="w-full text-left p-3 hover:bg-muted flex items-center gap-2"
-                          onClick={() =>
-                            setExpandedDays((prev) => ({
-                              ...prev,
-                              [date]: !prev[date],
-                            }))
-                          }
-                        >
-                          {isExpanded ? (
-                            <ChevronDown className="h-4 w-4" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4" />
-                          )}
-                          <span className="font-medium">
-                            {formatDate(date)}
-                          </span>
-                          <span className="text-muted-foreground text-sm ml-auto">
-                            {entries.length} item
-                            {entries.length !== 1 ? "s" : ""}
-                          </span>
-                        </button>
-                        {isExpanded && (
-                          <div className="pl-9 pb-2">
-                            {entries.length === 0 ? (
-                              <div className="text-sm text-muted-foreground py-1">
-                                No items scheduled
-                              </div>
-                            ) : (
-                              entries.map((entry) => (
-                                <button
-                                  key={entry.id}
-                                  type="button"
-                                  className="w-full text-left py-1 px-2 hover:bg-muted rounded text-sm flex justify-between items-center"
-                                  onClick={() => handleSelectEntry(entry)}
-                                >
-                                  <span>{entry.menuItem.name}</span>
-                                  <span className="text-muted-foreground">
-                                    {formatCents(entry.menuItem.basePrice)}
-                                  </span>
-                                </button>
-                              ))
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* All Items section */}
-              <div className="border rounded-md">
-                <div className="p-3 bg-muted border-b flex items-center justify-between">
-                  <button
-                    type="button"
-                    className="flex items-center gap-2 font-medium"
-                    onClick={() => setAllItemsExpanded(!allItemsExpanded)}
-                  >
-                    {allItemsExpanded ? (
-                      <ChevronDown className="h-4 w-4" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4" />
-                    )}
-                    All Items
-                  </button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setAddItemDialogOpen(true)}
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Create Item
-                  </Button>
-                </div>
-                {allItemsExpanded && (
-                  <div className="max-h-48 overflow-y-auto">
-                    {menuItemsQuery.isLoading && (
-                      <div className="p-4 text-center text-muted-foreground">
-                        Loading...
-                      </div>
-                    )}
-                    {menuItemsQuery.data?.length === 0 && (
-                      <div className="p-4 text-center text-muted-foreground">
-                        No menu items available
-                      </div>
-                    )}
-                    {menuItemsQuery.data?.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        className="w-full text-left p-3 hover:bg-muted border-b last:border-b-0 flex justify-between items-center"
-                        onClick={() => handleSelectMenuItem(item)}
-                        disabled={createCustomEntryMutation.isPending}
-                      >
-                        <span className="font-medium">{item.name}</span>
-                        <span className="text-muted-foreground">
-                          {formatCents(item.basePrice)}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* AddItemDialog for creating new items */}
-              <AddItemDialog
-                open={addItemDialogOpen}
-                onOpenChange={setAddItemDialogOpen}
-                onCreated={(newItem) => {
-                  setAddItemDialogOpen(false);
-                  handleNewItemCreated(newItem);
-                }}
-              />
-            </div>
-          )}
-
-          {/* Modifier selection */}
-          {selectedMenuEntry && (
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h3 className="font-medium text-lg">
-                  {selectedMenuEntry.menuItem.name}
-                </h3>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSelectedMenuEntry(null)}
-                >
-                  <X className="h-4 w-4" /> Change
-                </Button>
-              </div>
-
-              {selectedMenuEntry.menuItem.modifierGroups.length > 0 && (
-                <div className="space-y-4">
-                  {selectedMenuEntry.menuItem.modifierGroups
-                    .sort((a, b) => a.sortOrder - b.sortOrder)
-                    .map(({ modifierGroup }) => (
-                      <div key={modifierGroup.id} className="space-y-2">
-                        <div>
-                          <h4 className="font-medium">{modifierGroup.name}</h4>
-                          <p className="text-sm text-muted-foreground">
-                            {modifierGroup.minSelect === 0
-                              ? "Optional"
-                              : `Select at least ${modifierGroup.minSelect}`}
-                            {modifierGroup.maxSelect &&
-                              ` · Select up to ${modifierGroup.maxSelect}`}
-                          </p>
-                        </div>
-                        <div className="space-y-1">
-                          {modifierGroup.options.map((option) => {
-                            const isSelected =
-                              modifierSelections[modifierGroup.id]?.includes(
-                                option.id,
-                              ) ?? false;
-                            const selectedCount =
-                              modifierSelections[modifierGroup.id]?.length ?? 0;
-                            const isDisabled =
-                              !isSelected &&
-                              modifierGroup.maxSelect !== null &&
-                              selectedCount >= modifierGroup.maxSelect;
-
-                            return (
-                              <label
-                                key={option.id}
-                                className="flex items-center gap-3 p-2 rounded hover:bg-muted cursor-pointer"
-                              >
-                                <Checkbox
-                                  checked={isSelected}
-                                  disabled={isDisabled}
-                                  onCheckedChange={(checked) => {
-                                    setModifierSelections((prev) => {
-                                      const current =
-                                        prev[modifierGroup.id] ?? [];
-                                      if (checked) {
-                                        return {
-                                          ...prev,
-                                          [modifierGroup.id]: [
-                                            ...current,
-                                            option.id,
-                                          ],
-                                        };
-                                      } else {
-                                        return {
-                                          ...prev,
-                                          [modifierGroup.id]: current.filter(
-                                            (id) => id !== option.id,
-                                          ),
-                                        };
-                                      }
-                                    });
-                                  }}
-                                />
-                                <span className="flex-1">{option.name}</span>
-                                {option.priceDelta !== 0 && (
-                                  <span className="text-muted-foreground">
-                                    {option.priceDelta > 0 ? "+" : ""}
-                                    {formatCents(option.priceDelta)}
-                                  </span>
-                                )}
-                              </label>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              )}
-
-              {/* Quantity */}
-              <div className="flex items-center gap-4">
-                <Label>Quantity</Label>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      setItemQuantity(Math.max(1, itemQuantity - 1))
-                    }
-                    disabled={itemQuantity <= 1}
-                  >
-                    -
-                  </Button>
-                  <span className="w-8 text-center">{itemQuantity}</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setItemQuantity(itemQuantity + 1)}
-                  >
-                    +
-                  </Button>
-                </div>
-              </div>
-
-              {/* Special Instructions */}
-              <div>
-                <Label>Special Instructions</Label>
-                <Textarea
-                  placeholder="Any special requests?"
-                  value={itemSpecialInstructions}
-                  onChange={(e) => setItemSpecialInstructions(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-
-              {/* Price preview */}
-              <div className="flex justify-between font-medium pt-2 border-t">
-                <span>Item Total</span>
-                <span>
-                  {formatCents(
-                    calculateItemPrice(
-                      selectedMenuEntry.menuItem,
-                      Object.values(modifierSelections).flat(),
-                    ) * itemQuantity,
-                  )}
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setStep("items")}>
-            Cancel
-          </Button>
-          <Button disabled={!selectedMenuEntry} onClick={addItemToOrder}>
-            Add to Order
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    );
-  }
-
   return (
-    <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-      <DialogHeader>
+    <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0 gap-0">
+      <DialogHeader className="px-6 pt-6 pb-4">
         <DialogTitle>
           {dataAndMode.mode === "view"
             ? "View Order"
@@ -913,118 +745,257 @@ function AddManualOrderDialogContent({
         </DialogDescription>
       </DialogHeader>
 
-      <div className="space-y-4">
-        {/* User info */}
-        {selectedUser && dataAndMode.mode !== "edit" && (
-          <div className="flex justify-between items-center p-3 bg-muted rounded-md">
-            <div>
-              <div className="font-medium">{selectedUser.name}</div>
-              {selectedUser.phoneNumber && (
-                <div className="text-sm text-muted-foreground">
-                  {selectedUser.phoneNumber}
-                </div>
+      <div className="flex-1 overflow-hidden flex">
+        {/* Left column: User info + Browse menu + Search */}
+        <div className="w-1/2 border-r overflow-y-auto px-6 py-3 space-y-4">
+          {/* User info */}
+          {selectedUser && dataAndMode.mode !== "edit" && (
+            <div className="flex justify-between items-center p-3 bg-muted rounded-md">
+              <div>
+                <div className="font-medium">{selectedUser.name}</div>
+                {selectedUser.phoneNumber && (
+                  <div className="text-sm text-muted-foreground">
+                    {selectedUser.phoneNumber}
+                  </div>
+                )}
+              </div>
+              {dataAndMode.mode !== "view" && (
+                <Button variant="ghost" size="sm" onClick={() => setStep("user")}>
+                  Change
+                </Button>
               )}
             </div>
-            <Button variant="ghost" size="sm" onClick={() => setStep("user")}>
-              Change
-            </Button>
-          </div>
-        )}
+          )}
 
-        {/* Items list */}
-        <div className="space-y-2">
-          <div className="flex justify-between items-center">
-            <Label>Items</Label>
-            {dataAndMode.mode !== "view" && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setStep("addItem")}
-              >
-                <Plus className="h-4 w-4 mr-1" /> Add Item
-              </Button>
-            )}
-          </div>
-
-          {items.length === 0 ? (
-            <div className="p-4 border rounded-md text-center text-muted-foreground">
-              No items added yet
-            </div>
-          ) : (
-            <div className="border rounded-md divide-y">
-              {items.map((item, index) => {
-                const pastDue = isItemPastDue(item);
-                return (
-                  <div
-                    key={index}
-                    className={`p-3 flex justify-between items-start ${pastDue ? "opacity-60" : ""}`}
+          {/* Date selector + menu items + search (hidden in view mode and when locked) */}
+          {dataAndMode.mode !== "view" && !isLocked && (
+            <>
+              {/* Date selector popover */}
+              <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start gap-2"
                   >
-                    <div className="flex-1">
-                      <div className="font-medium">{item.menuItemName}</div>
-                      {item.modifierNames.length > 0 && (
-                        <div className="text-sm text-muted-foreground">
-                          {item.modifierNames.join(", ")}
-                        </div>
-                      )}
-                      {item.specialInstructions && (
-                        <div className="text-sm text-muted-foreground italic">
-                          Note: {item.specialInstructions}
-                        </div>
-                      )}
-                      {pastDue && dataAndMode.mode !== "view" && (
-                        <div className="text-xs text-amber-600 mt-1">
-                          Past due - locked
-                        </div>
-                      )}
+                    <CalendarDays className="h-4 w-4" />
+                    {formatBrowseDate(browseDate)}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-2" align="start">
+                  <DayPicker
+                    mode="single"
+                    selected={browseDate}
+                    onSelect={(date) => {
+                      if (date) {
+                        setBrowseDate(date);
+                        setDatePickerOpen(false);
+                      }
+                    }}
+                    className="rounded-lg"
+                  />
+                </PopoverContent>
+              </Popover>
+
+              {/* Menu items for selected day */}
+              <div className="border rounded-md">
+                <div className="p-3 bg-muted font-medium border-b text-sm">
+                  Menu &middot; {formatDate(browseDateStr)}
+                </div>
+                <div className="max-h-60 overflow-y-auto">
+                  {menuEntriesQuery.isLoading && (
+                    <div className="p-4 text-center text-muted-foreground text-sm">
+                      Loading...
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-medium">
-                        {formatCents(item.unitPrice * item.quantity)}
-                      </span>
-                      {dataAndMode.mode === "view" ? (
-                        <span className="text-muted-foreground">
-                          ×{item.quantity}
-                        </span>
-                      ) : (
-                        <QuantityStepper
-                          value={item.quantity}
-                          onReduce={() => {
-                            if (item.quantity <= 1) {
-                              removeItem(index);
-                            } else {
-                              updateItemQuantity(index, item.quantity - 1);
-                            }
-                          }}
-                          onIncrease={() =>
-                            updateItemQuantity(index, item.quantity + 1)
-                          }
-                          reduceIcon={
-                            item.quantity <= 1 ? (
-                              <Trash2 className="size-4" />
-                            ) : undefined
-                          }
-                          reduceDisabled={pastDue}
-                          increaseDisabled={pastDue}
-                        />
-                      )}
-                    </div>
+                  )}
+                  {!menuEntriesQuery.isLoading &&
+                    menuEntriesForSelectedDay.length === 0 && (
+                      <div className="p-4 text-center text-muted-foreground text-sm">
+                        No items for this date
+                      </div>
+                    )}
+                  {menuEntriesForSelectedDay.map((entry) => {
+                    const canQuickAdd = !hasRequiredModifiers(entry.menuItem);
+                    return (
+                      <div
+                        key={entry.id}
+                        className="flex items-center justify-between p-3 border-b last:border-b-0"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm truncate">
+                            {entry.menuItem.name}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {formatCents(entry.menuItem.basePrice)}
+                          </div>
+                        </div>
+                        <div className="flex gap-1.5 ml-2 shrink-0">
+                          {canQuickAdd && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => quickAddItem(entry)}
+                            >
+                              <Plus className="h-3.5 w-3.5 mr-1" />
+                              Quick
+                            </Button>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openModifierDialogForEntry(entry)}
+                          >
+                            <Plus className="h-3.5 w-3.5 mr-1" />
+                            Add
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Search all items */}
+              <div className="space-y-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search all items..."
+                    value={itemSearch}
+                    onChange={(e) => setItemSearch(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                {searchedMenuItems.length > 0 && (
+                  <div className="border rounded-md max-h-48 overflow-y-auto">
+                    {searchedMenuItems.map((item) => {
+                      const canQuickAdd = !hasRequiredModifiers(item);
+                      return (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between p-3 border-b last:border-b-0"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm truncate">
+                              {item.name}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {formatCents(item.basePrice)}
+                            </div>
+                          </div>
+                          <div className="flex gap-1.5 ml-2 shrink-0">
+                            {canQuickAdd && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={createCustomEntryMutation.isPending}
+                                onClick={() => quickAddArbitraryItem(item)}
+                              >
+                                <Plus className="h-3.5 w-3.5 mr-1" />
+                                Quick
+                              </Button>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={createCustomEntryMutation.isPending}
+                              onClick={() => openModifierDialogForItem(item)}
+                            >
+                              <Plus className="h-3.5 w-3.5 mr-1" />
+                              Add
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
+                )}
+              </div>
+            </>
           )}
         </div>
 
-        {/* Total */}
-        {items.length > 0 && (
-          <div className="flex justify-between font-medium text-lg pt-2 border-t">
-            <span>Total</span>
-            <span>{formatCents(total)}</span>
+        {/* Right column: Cart + Total */}
+        <div className="w-1/2 flex flex-col overflow-hidden">
+          <div className="flex-1 overflow-y-auto px-6 py-3">
+            {isLocked && (
+              <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-md text-sm text-amber-800">
+                This order has payments and cannot be modified.
+              </div>
+            )}
+            {items.length === 0 ? (
+              <div className="p-4 border rounded-md text-center text-muted-foreground">
+                No items added yet
+              </div>
+            ) : (
+              <div className="border rounded-md divide-y">
+                {items.map((item, index) => (
+                    <div
+                      key={index}
+                      className="p-3 flex justify-between items-start"
+                    >
+                      <div className="flex-1">
+                        <div className="font-medium">{item.menuItemName}</div>
+                        {item.modifierNames.length > 0 && (
+                          <div className="text-sm text-muted-foreground">
+                            {item.modifierNames.join(", ")}
+                          </div>
+                        )}
+                        {item.specialInstructions && (
+                          <div className="text-sm text-muted-foreground italic">
+                            Note: {item.specialInstructions}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-medium">
+                          {formatCents(item.unitPrice * item.quantity)}
+                        </span>
+                        {dataAndMode.mode === "view" || isLocked ? (
+                          <span className="text-muted-foreground">
+                            ×{item.quantity}
+                          </span>
+                        ) : (
+                          <QuantityStepper
+                            value={item.quantity}
+                            onReduce={() => {
+                              if (item.quantity <= 1) {
+                                removeItem(index);
+                              } else {
+                                updateItemQuantity(index, item.quantity - 1);
+                              }
+                            }}
+                            onIncrease={() =>
+                              updateItemQuantity(index, item.quantity + 1)
+                            }
+                            reduceIcon={
+                              item.quantity <= 1 ? (
+                                <Trash2 className="size-4" />
+                              ) : undefined
+                            }
+                            reduceDisabled={false}
+                            increaseDisabled={false}
+                          />
+                        )}
+                      </div>
+                    </div>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+          {/* Total */}
+          {items.length > 0 && (
+            <div className="px-6 py-3 border-t">
+              <div className="flex justify-between font-medium text-lg">
+                <span>Total</span>
+                <span>{formatCents(total)}</span>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      <DialogFooter>
+      {/* Sticky footer */}
+      <div className="px-6 py-4 border-t flex justify-end gap-2">
         {dataAndMode.mode === "view" ? (
           <Button onClick={() => setOpen(false)}>Close</Button>
         ) : (
@@ -1034,6 +1005,7 @@ function AddManualOrderDialogContent({
             </Button>
             <Button
               disabled={
+                isLocked ||
                 !selectedUserId ||
                 items.length === 0 ||
                 createOrderMutation.isPending ||
@@ -1051,8 +1023,19 @@ function AddManualOrderDialogContent({
             </Button>
           </>
         )}
-      </DialogFooter>
+      </div>
+
+      {/* Modifier sub-dialog */}
+      {modifierDialogEntry && (
+        <ModifierSelectionDialog
+          entry={modifierDialogEntry}
+          onClose={() => setModifierDialogEntry(null)}
+          onAddToOrder={(item) => {
+            setItems((prev) => [...prev, item]);
+            setModifierDialogEntry(null);
+          }}
+        />
+      )}
     </DialogContent>
   );
 }
-
