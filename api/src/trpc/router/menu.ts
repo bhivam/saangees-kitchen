@@ -5,6 +5,7 @@ import { db } from "../../db/db.js";
 import { menuItems, menuEntries, orderItems } from "../../db/schema.js";
 import { TRPCError } from "@trpc/server";
 import { PgColumn } from "drizzle-orm/pg-core";
+import { isMenuVisible, isOrderingOpen } from "../../lib/order-cutoffs.js";
 
 // TODO may consider differentiating having a manual order vs a customer order
 function hasOrdersQuery(menuEntriesId: PgColumn) {
@@ -126,7 +127,7 @@ export const menuRouter = createTRPCRouter({
     // Calculate days until Saturday (Sunday gets full week)
     const daysUntilSaturday = dayOfWeek === 0 ? 7 : 6 - dayOfWeek + 1;
 
-    // Generate date strings for today through Saturday
+    // Generate date strings for today through Saturday, excluding hidden dates
     const dates: string[] = [];
     for (let i = 0; i < daysUntilSaturday; i++) {
       const date = new Date(today);
@@ -134,8 +135,13 @@ export const menuRouter = createTRPCRouter({
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, "0");
       const day = String(date.getDate()).padStart(2, "0");
-      dates.push(`${year}-${month}-${day}`);
+      const dateStr = `${year}-${month}-${day}`;
+      if (isMenuVisible(dateStr)) {
+        dates.push(dateStr);
+      }
     }
+
+    if (dates.length === 0) return [];
 
     const menuEntriesResult = await db.query.menuEntries.findMany({
       where: and(
@@ -162,11 +168,12 @@ export const menuRouter = createTRPCRouter({
     if (!menuEntriesResult)
       throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-    // Filter out deleted items/groups/options
+    // Filter out deleted items/groups/options, add orderingOpen flag
     const filteredResult = menuEntriesResult
       .filter((entry) => entry.menuItem.deletedAt === null)
       .map((entry) => ({
         ...entry,
+        orderingOpen: isOrderingOpen(entry.date),
         menuItem: {
           ...entry.menuItem,
           modifierGroups: entry.menuItem.modifierGroups
