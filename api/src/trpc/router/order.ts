@@ -14,6 +14,7 @@ import {
 } from "../../db/schema.js";
 import { inArray, eq, and, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
+import { isOrderingOpen } from "../../lib/order-cutoffs.js";
 
 // Helper to normalize date values (can be string or Date) to YYYY-MM-DD format
 // Uses local timezone to prevent off-by-one day errors in EST/other timezones
@@ -56,6 +57,17 @@ export const ordersRouter = createTRPCRouter({
       });
 
       const entryMap = new Map(entriesWithItems.map((e) => [e.id, e]));
+
+      // Enforce ordering cutoffs — reject if any item's date is past close
+      for (const entry of entriesWithItems) {
+        const dateStr = normalizeDate(entry.date);
+        if (dateStr && !isOrderingOpen(dateStr)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Ordering is closed for ${dateStr}`,
+          });
+        }
+      }
 
       // Fetch all modifier options for price lookup
       const allModifierOptionIds = input.items.flatMap(

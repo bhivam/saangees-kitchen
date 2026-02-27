@@ -10,6 +10,7 @@ import { Dialog, DialogTrigger } from "./ui/dialog";
 import { Sheet, SheetTrigger } from "./ui/sheet";
 import { useState } from "react";
 import { HomeSheetContent } from "./home-sheet-content";
+import { isMenuVisible } from "@/lib/order-cutoffs";
 
 export type MenuEntry = RouterOutputs["menu"]["getWeekMenu"][number];
 
@@ -64,10 +65,20 @@ function groupMenusByDate(menuEntries: MenuEntry[]): Map<string, MenuEntry[]> {
   return grouped;
 }
 
-function MenuItemBullet({ entry }: { entry: MenuEntry }) {
+function MenuItemBullet({ entry, disabled }: { entry: MenuEntry; disabled?: boolean }) {
   const [open, setOpen] = useState(false);
   const menuItem = entry.menuItem;
   const price = (menuItem.basePrice / 100).toFixed(2);
+
+  if (disabled) {
+    return (
+      <div className="text-left rounded px-1 py-0.5 w-full opacity-50 cursor-not-allowed">
+        <span className="text-gray-800">
+          • {menuItem.name} - ${price}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -89,13 +100,18 @@ function MenuItemBullet({ entry }: { entry: MenuEntry }) {
   );
 }
 
-function DayCard({ date, entries }: { date: string; entries: MenuEntry[] }) {
+function DayCard({ date, entries, orderingOpen }: { date: string; entries: MenuEntry[]; orderingOpen: boolean }) {
   return (
     <div className="bg-menu-card py-0.5 px-1.5 shadow-md">
-      <h3 className="text-xl font-bold underline">{getDayName(date)}</h3>
+      <h3 className="text-xl font-bold underline">
+        {getDayName(date)}
+        {!orderingOpen && (
+          <span className="text-sm font-normal text-red-700 ml-2 no-underline">(Ordering closed)</span>
+        )}
+      </h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1">
         {entries.map((entry) => (
-          <MenuItemBullet key={entry.id} entry={entry} />
+          <MenuItemBullet key={entry.id} entry={entry} disabled={!orderingOpen} />
         ))}
       </div>
     </div>
@@ -192,13 +208,15 @@ export function CustomerMenuView() {
     ? groupMenusByDate(menuEntries)
     : new Map<string, MenuEntry[]>();
 
-  // Get sorted list of dates with items
+  // Get sorted list of dates with items, filtering out hidden days (client-side double-check)
   const daysWithItems = menuEntries
     ? [
         ...new Set(
           menuEntries.map((e) => e.date).filter((d): d is string => d !== null),
         ),
-      ].sort()
+      ]
+        .filter((d) => isMenuVisible(d))
+        .sort()
     : [];
 
   // Calculate date range text
@@ -219,7 +237,8 @@ export function CustomerMenuView() {
         <div className="space-y-4">
           {daysWithItems.map((date) => {
             const entries = groupedMenus.get(date)!;
-            return <DayCard key={date} date={date} entries={entries} />;
+            const orderingOpen = entries[0]?.orderingOpen ?? true;
+            return <DayCard key={date} date={date} entries={entries} orderingOpen={orderingOpen} />;
           })}
         </div>
       </div>

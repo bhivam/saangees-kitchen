@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "./ui/button";
 import { AddItemDialog } from "./add-item-dialog";
 import { ArrowUp, ArrowDown, Plus, Trash } from "lucide-react";
-import { useTRPC, useTRPCClient, type RouterOutputs } from "@/trpc";
+import { useTRPC, type RouterOutputs } from "@/trpc";
 import { toast } from "sonner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DayPicker } from "react-day-picker";
@@ -19,7 +19,6 @@ function isOptimisticEntry(id: string) {
 
 export function MenuEditor() {
   const trpc = useTRPC();
-  const trpcClient = useTRPCClient();
   const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
     new Date(),
@@ -44,151 +43,112 @@ export function MenuEditor() {
     useQuery(menuQueryOptions);
 
   const menuEntries = existingMenu ?? [];
-  const selectedItemIds = new Set(menuEntries.map((e) => e.menuItem.id));
+
+  const selectedItemIds = useMemo(
+    () => new Set(menuEntries.map((e) => e.menuItem.id)),
+    [menuEntries],
+  );
   const unselectedItems =
     allItems?.filter((item) => !selectedItemIds.has(item.id)) ?? [];
 
-  const addItemMutation = useMutation({
-    mutationFn: async (itemId: string) => {
-      const currentEntries =
-        queryClient.getQueryData<MenuEntry[]>(menuQueryOptions.queryKey) ?? [];
-      const currentIds = currentEntries
-        .filter((e) => !isOptimisticEntry(e.id))
-        .map((e) => e.menuItem.id);
-      return trpcClient.menu.save.mutate({
-        date: dateString,
-        itemsToSave: [...currentIds, itemId],
-        itemsToDelete: [],
-      });
-    },
-    onMutate: async (itemId) => {
-      await queryClient.cancelQueries({ queryKey: menuQueryOptions.queryKey });
-      const previous = queryClient.getQueryData<MenuEntry[]>(
-        menuQueryOptions.queryKey,
-      );
+  const getMenuEntries = () =>
+    queryClient.getQueryData<MenuEntry[]>(menuQueryOptions.queryKey) ?? [];
 
-      const itemToAdd = allItems?.find((i) => i.id === itemId);
-      if (!itemToAdd) return { previous };
+  const getNonOptimisticIds = (entries: MenuEntry[]) =>
+    entries.filter((e) => !isOptimisticEntry(e.id)).map((e) => e.menuItem.id);
 
-      const currentEntries = previous ?? [];
-      const optimisticEntry: MenuEntry = {
-        id: `optim-${crypto.randomUUID()}`,
-        date: dateString,
-        sortOrder: currentEntries.length,
-        menuItem: itemToAdd,
-        hasOrders: false,
-      };
+  const addItemMutation = useMutation(
+    trpc.menu.save.mutationOptions({
+      onMutate: async (input) => {
+        await queryClient.cancelQueries({
+          queryKey: menuQueryOptions.queryKey,
+        });
+        const previous = getMenuEntries();
 
-      queryClient.setQueryData(menuQueryOptions.queryKey, [
-        ...currentEntries,
-        optimisticEntry,
-      ]);
-      return { previous };
-    },
-    onSuccess: (data) => {
-      queryClient.setQueryData(menuQueryOptions.queryKey, data.entries);
-    },
-    onError: (err, _, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(menuQueryOptions.queryKey, context.previous);
-      }
-      toast.error("Failed to add item", { description: err.message });
-    },
-  });
+        const existingIds = new Set(previous.map((e) => e.menuItem.id));
+        const newItemId = input.itemsToSave.find((id) => !existingIds.has(id));
+        const itemToAdd = allItems?.find((i) => i.id === newItemId);
+        if (!itemToAdd) return { previous };
 
-  const removeItemMutation = useMutation({
-    mutationFn: async (entryId: string) => {
-      const currentEntries =
-        queryClient.getQueryData<MenuEntry[]>(menuQueryOptions.queryKey) ?? [];
-      const remainingIds = currentEntries
-        .filter((e) => e.id !== entryId && !isOptimisticEntry(e.id))
-        .map((e) => e.menuItem.id);
-      return trpcClient.menu.save.mutate({
-        date: dateString,
-        itemsToSave: remainingIds,
-        itemsToDelete: [entryId],
-      });
-    },
-    onMutate: async (entryId) => {
-      await queryClient.cancelQueries({ queryKey: menuQueryOptions.queryKey });
-      const previous = queryClient.getQueryData<MenuEntry[]>(
-        menuQueryOptions.queryKey,
-      );
+        const optimisticEntry: MenuEntry = {
+          id: `optim-${crypto.randomUUID()}`,
+          date: dateString,
+          sortOrder: previous.length,
+          menuItem: itemToAdd,
+          hasOrders: false,
+        };
 
-      const filtered = (previous ?? []).filter((e) => e.id !== entryId);
-      queryClient.setQueryData(menuQueryOptions.queryKey, filtered);
-      return { previous };
-    },
-    onSuccess: (data) => {
-      queryClient.setQueryData(menuQueryOptions.queryKey, data.entries);
-    },
-    onError: (err, _, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(menuQueryOptions.queryKey, context.previous);
-      }
-      toast.error("Failed to remove item", { description: err.message });
-    },
-  });
+        queryClient.setQueryData(menuQueryOptions.queryKey, [
+          ...previous,
+          optimisticEntry,
+        ]);
+        return { previous };
+      },
+      onSuccess: (data) => {
+        queryClient.setQueryData(menuQueryOptions.queryKey, data.entries);
+      },
+      onError: (err, _, context) => {
+        if (context?.previous) {
+          queryClient.setQueryData(menuQueryOptions.queryKey, context.previous);
+        }
+        toast.error("Failed to add item", { description: err.message });
+      },
+    }),
+  );
 
-  const reorderMutation = useMutation({
-    mutationFn: async ({
-      entryId,
-      direction,
-      currentEntries,
-    }: {
-      entryId: string;
-      direction: "up" | "down";
-      currentEntries: MenuEntry[];
-    }) => {
-      const index = currentEntries.findIndex((e) => e.id === entryId);
-      const newIndex = direction === "up" ? index - 1 : index + 1;
+  const removeItemMutation = useMutation(
+    trpc.menu.save.mutationOptions({
+      onMutate: async (input) => {
+        await queryClient.cancelQueries({
+          queryKey: menuQueryOptions.queryKey,
+        });
+        const previous = getMenuEntries();
 
-      const reordered = [...currentEntries];
-      [reordered[index], reordered[newIndex]] = [
-        reordered[newIndex],
-        reordered[index],
-      ];
+        const deleteIds = new Set(input.itemsToDelete);
+        const filtered = previous.filter((e) => !deleteIds.has(e.id));
+        queryClient.setQueryData(menuQueryOptions.queryKey, filtered);
+        return { previous };
+      },
+      onSuccess: (data) => {
+        queryClient.setQueryData(menuQueryOptions.queryKey, data.entries);
+      },
+      onError: (err, _, context) => {
+        if (context?.previous) {
+          queryClient.setQueryData(menuQueryOptions.queryKey, context.previous);
+        }
+        toast.error("Failed to remove item", { description: err.message });
+      },
+    }),
+  );
 
-      return trpcClient.menu.save.mutate({
-        date: dateString,
-        itemsToSave: reordered
-          .filter((e) => !isOptimisticEntry(e.id))
-          .map((e) => e.menuItem.id),
-        itemsToDelete: [],
-      });
-    },
-    onMutate: async ({ entryId, direction }) => {
-      await queryClient.cancelQueries({ queryKey: menuQueryOptions.queryKey });
-      const previous = queryClient.getQueryData<MenuEntry[]>(
-        menuQueryOptions.queryKey,
-      );
+  const reorderMutation = useMutation(
+    trpc.menu.save.mutationOptions({
+      onMutate: async (input) => {
+        await queryClient.cancelQueries({
+          queryKey: menuQueryOptions.queryKey,
+        });
+        const previous = getMenuEntries();
 
-      const currentEntries = previous ?? [];
-      const index = currentEntries.findIndex((e) => e.id === entryId);
-      const newIndex = direction === "up" ? index - 1 : index + 1;
+        const entryMap = new Map(previous.map((e) => [e.menuItem.id, e]));
+        const reordered = input.itemsToSave
+          .map((id) => entryMap.get(id))
+          .filter((e): e is MenuEntry => !!e)
+          .map((e, i) => ({ ...e, sortOrder: i }));
 
-      const reordered = [...currentEntries];
-      const [item] = reordered.splice(index, 1);
-      reordered.splice(newIndex, 0, item);
-
-      const withUpdatedOrder = reordered.map((e, i) => ({
-        ...e,
-        sortOrder: i,
-      }));
-
-      queryClient.setQueryData(menuQueryOptions.queryKey, withUpdatedOrder);
-      return { previous };
-    },
-    onSuccess: (data) => {
-      queryClient.setQueryData(menuQueryOptions.queryKey, data.entries);
-    },
-    onError: (err, _, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(menuQueryOptions.queryKey, context.previous);
-      }
-      toast.error("Failed to reorder items", { description: err.message });
-    },
-  });
+        queryClient.setQueryData(menuQueryOptions.queryKey, reordered);
+        return { previous };
+      },
+      onSuccess: (data) => {
+        queryClient.setQueryData(menuQueryOptions.queryKey, data.entries);
+      },
+      onError: (err, _, context) => {
+        if (context?.previous) {
+          queryClient.setQueryData(menuQueryOptions.queryKey, context.previous);
+        }
+        toast.error("Failed to reorder items", { description: err.message });
+      },
+    }),
+  );
 
   const isMutating =
     addItemMutation.isPending ||
@@ -200,31 +160,51 @@ export function MenuEditor() {
       toast.error("Please select a date");
       return;
     }
-    addItemMutation.mutate(item.id);
+    const currentIds = getNonOptimisticIds(getMenuEntries());
+    addItemMutation.mutate({
+      date: dateString,
+      itemsToSave: [...currentIds, item.id],
+      itemsToDelete: [],
+    });
   };
 
   const handleRemoveItem = (entryId: string) => {
-    removeItemMutation.mutate(entryId);
+    const remainingIds = getNonOptimisticIds(
+      getMenuEntries().filter((e) => e.id !== entryId),
+    );
+    removeItemMutation.mutate({
+      date: dateString,
+      itemsToSave: remainingIds,
+      itemsToDelete: [entryId],
+    });
   };
 
-  const handleMoveUp = (entryId: string, index: number) => {
-    if (index > 0) {
-      reorderMutation.mutate({
-        entryId,
-        direction: "up",
-        currentEntries: [...menuEntries],
-      });
-    }
+  const handleMoveUp = (index: number) => {
+    if (index <= 0) return;
+    const reordered = [...menuEntries];
+    [reordered[index], reordered[index - 1]] = [
+      reordered[index - 1],
+      reordered[index],
+    ];
+    reorderMutation.mutate({
+      date: dateString,
+      itemsToSave: getNonOptimisticIds(reordered),
+      itemsToDelete: [],
+    });
   };
 
-  const handleMoveDown = (entryId: string, index: number) => {
-    if (index < menuEntries.length - 1) {
-      reorderMutation.mutate({
-        entryId,
-        direction: "down",
-        currentEntries: [...menuEntries],
-      });
-    }
+  const handleMoveDown = (index: number) => {
+    if (index >= menuEntries.length - 1) return;
+    const reordered = [...menuEntries];
+    [reordered[index], reordered[index + 1]] = [
+      reordered[index + 1],
+      reordered[index],
+    ];
+    reorderMutation.mutate({
+      date: dateString,
+      itemsToSave: getNonOptimisticIds(reordered),
+      itemsToDelete: [],
+    });
   };
 
   const isLoading = allItemsPending || menuPending;
@@ -328,7 +308,7 @@ export function MenuEditor() {
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7"
-                              onClick={() => handleMoveUp(entry.id, index)}
+                              onClick={() => handleMoveUp(index)}
                               disabled={
                                 index === 0 || isMutating || isOptimistic
                               }
@@ -339,7 +319,7 @@ export function MenuEditor() {
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7"
-                              onClick={() => handleMoveDown(entry.id, index)}
+                              onClick={() => handleMoveDown(index)}
                               disabled={
                                 index === menuEntries.length - 1 ||
                                 isMutating ||

@@ -9,6 +9,7 @@ import {
   date,
   boolean,
   index,
+  varchar,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -206,6 +207,77 @@ export const menusRelations = relations(menuEntries, ({ one }) => ({
   }),
 }));
 
+export const deliveryDates = pgTable(
+  "delivery_dates",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id),
+    date: date("date").notNull(),
+    addressId: uuid("address_id").references(() => addresses.id),
+    ...sharedColumns,
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.date], name: "delivery_dates_pk" }),
+  ],
+);
+
+export const deliveryDatesRelations = relations(deliveryDates, ({ one }) => ({
+  user: one(user, {
+    fields: [deliveryDates.userId],
+    references: [user.id],
+  }),
+  address: one(addresses, {
+    fields: [deliveryDates.addressId],
+    references: [addresses.id],
+  }),
+}));
+
+export const addresses = pgTable("addresses", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  addressLine1: text("address_line_1").notNull(),
+  addressLine2: text("address_line_2"),
+  city: varchar("city", { length: 100 }).notNull(),
+  state: varchar("state", { length: 100 }).notNull(),
+  postalCode: varchar("postal_code", { length: 20 }).notNull(),
+  country: varchar("country", { length: 2 }).notNull().default("US"),
+  label: text("label"),
+  ...sharedColumns,
+});
+
+export const userAddresses = pgTable(
+  "user_addresses",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id),
+    addressId: uuid("address_id")
+      .notNull()
+      .references(() => addresses.id),
+    isDefault: boolean("is_default").notNull().default(false),
+    addressType: text("address_type").notNull(),
+    ...sharedColumns,
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.addressId], name: "user_addresses_pk" }),
+  ],
+);
+
+export const addressesRelations = relations(addresses, ({ many }) => ({
+  userAddresses: many(userAddresses),
+}));
+
+export const userAddressesRelations = relations(userAddresses, ({ one }) => ({
+  user: one(user, {
+    fields: [userAddresses.userId],
+    references: [user.id],
+  }),
+  address: one(addresses, {
+    fields: [userAddresses.addressId],
+    references: [addresses.id],
+  }),
+}));
+
 // GENERATED DO NOT MODIFY
 
 export const user = pgTable("user", {
@@ -292,6 +364,8 @@ export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
   orders: many(orders),
+  deliveryDates: many(deliveryDates),
+  addresses: many(userAddresses),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -309,5 +383,5 @@ export const accountRelations = relations(account, ({ one }) => ({
 }));
 
 // END OF GENERATED CODE
-// add orders: many(orders) to userRelations whenever using
+// add orders: many(orders), deliveryDates: many(deliveryDates), and addresses: many(userAddresses) to userRelations whenever regenerating
 
