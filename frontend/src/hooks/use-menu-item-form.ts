@@ -1,42 +1,8 @@
 import type { MenuItem } from "@/components/customer-menu-view";
 import { useForm } from "@tanstack/react-form";
-import z from "zod";
 import { useCart } from "./use-cart";
 import { useState } from "react";
-
-function buildValidationSchema(menuItem: MenuItem) {
-  return z.object({
-    quantity: z.number().int().positive().min(1),
-    modifierSelections: z
-      .record(z.string(), z.array(z.string()))
-      .superRefine((selections, ctx) => {
-        menuItem.modifierGroups.forEach(({ modifierGroup }) => {
-          const groupId = modifierGroup.id;
-          const selectedOptions = selections[groupId] ?? [];
-          const selectedCount = selectedOptions.length;
-
-          if (selectedCount < modifierGroup.minSelect) {
-            ctx.addIssue({
-              code: "custom",
-              message: `Select at least ${modifierGroup.minSelect}`,
-              path: [groupId],
-            });
-          }
-
-          if (
-            modifierGroup.maxSelect !== null &&
-            selectedCount > modifierGroup.maxSelect
-          ) {
-            ctx.addIssue({
-              code: "custom",
-              message: `Select at most ${modifierGroup.maxSelect}`,
-              path: [groupId],
-            });
-          }
-        });
-      }),
-  });
-}
+import { buildValidationSchema } from "./use-modifier-selection";
 
 export type MenuItemSelection = {
   quantity: number;

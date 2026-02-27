@@ -21,6 +21,7 @@ import { Checkbox } from "../ui/checkbox";
 import { Textarea } from "../ui/textarea";
 import { DateSelector } from "./date-selector";
 import { formatDate, type MenuEntry, type MenuItem } from "../customer-menu-view";
+import { useModifierSelection } from "@/hooks/use-modifier-selection";
 
 type Order = RouterOutputs["orders"]["getOrders"][number];
 
@@ -45,55 +46,31 @@ function ModifierSelectionDialog({
   onClose: () => void;
   onAddToOrder: (item: OrderItem) => void;
 }) {
-  const [modifierSelections, setModifierSelections] = useState<
-    Record<string, string[]>
-  >(() => {
-    const initial: Record<string, string[]> = {};
-    for (const mg of entry.menuItem.modifierGroups) {
-      initial[mg.modifierGroup.id] = [];
-    }
-    return initial;
-  });
-  const [quantity, setQuantity] = useState(1);
-  const [specialInstructions, setSpecialInstructions] = useState("");
-
-  const calculateItemPrice = (selectedOptions: string[]) => {
-    let price = entry.menuItem.basePrice;
-    for (const optionId of selectedOptions) {
-      for (const mg of entry.menuItem.modifierGroups) {
-        const option = mg.modifierGroup.options.find((o) => o.id === optionId);
-        if (option) {
-          price += option.priceDelta;
-        }
-      }
-    }
-    return price;
-  };
-
-  const getModifierNames = (selectedOptions: string[]) => {
-    const names: string[] = [];
-    for (const optionId of selectedOptions) {
-      for (const mg of entry.menuItem.modifierGroups) {
-        const option = mg.modifierGroup.options.find((o) => o.id === optionId);
-        if (option) {
-          names.push(option.name);
-        }
-      }
-    }
-    return names;
-  };
-
-  const allSelectedOptions = Object.values(modifierSelections).flat();
-  const unitPrice = calculateItemPrice(allSelectedOptions);
+  const {
+    modifierSelections,
+    quantity,
+    specialInstructions,
+    toggleModifierOption,
+    setQuantity,
+    setSpecialInstructions,
+    modifierErrors,
+    validate,
+    calculateUnitPrice,
+    calculateTotalPrice,
+    getSelectedModifierNames,
+    getAllSelectedOptionIds,
+  } = useModifierSelection({ menuItem: entry.menuItem });
 
   const handleAdd = () => {
+    if (!validate()) return;
+    const unitPrice = calculateUnitPrice();
     onAddToOrder({
       menuEntryId: entry.id,
       menuEntryDate: entry.date,
       menuItemName: entry.menuItem.name,
       quantity,
-      modifierOptionIds: allSelectedOptions,
-      modifierNames: getModifierNames(allSelectedOptions),
+      modifierOptionIds: getAllSelectedOptionIds(),
+      modifierNames: getSelectedModifierNames(),
       unitPrice,
       specialInstructions: specialInstructions.trim() || undefined,
     });
@@ -151,27 +128,8 @@ function ModifierSelectionDialog({
                             <Checkbox
                               checked={isSelected}
                               disabled={isDisabled}
-                              onCheckedChange={(checked) => {
-                                setModifierSelections((prev) => {
-                                  const current =
-                                    prev[modifierGroup.id] ?? [];
-                                  if (checked) {
-                                    return {
-                                      ...prev,
-                                      [modifierGroup.id]: [
-                                        ...current,
-                                        option.id,
-                                      ],
-                                    };
-                                  } else {
-                                    return {
-                                      ...prev,
-                                      [modifierGroup.id]: current.filter(
-                                        (id) => id !== option.id,
-                                      ),
-                                    };
-                                  }
-                                });
+                              onCheckedChange={() => {
+                                toggleModifierOption(modifierGroup.id, option.id);
                               }}
                             />
                             <span className="flex-1">{option.name}</span>
@@ -185,6 +143,9 @@ function ModifierSelectionDialog({
                         );
                       })}
                     </div>
+                    {modifierErrors[modifierGroup.id] && (
+                      <p className="text-sm text-red-500 mt-1">{modifierErrors[modifierGroup.id]}</p>
+                    )}
                   </div>
                 ))}
             </div>
@@ -227,7 +188,7 @@ function ModifierSelectionDialog({
           {/* Price preview */}
           <div className="flex justify-between font-medium pt-2 border-t">
             <span>Item Total</span>
-            <span>{formatCents(unitPrice * quantity)}</span>
+            <span>{formatCents(calculateTotalPrice())}</span>
           </div>
         </div>
 

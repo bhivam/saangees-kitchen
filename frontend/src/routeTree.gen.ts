@@ -20,9 +20,9 @@ import { Route as DashboardRouteRouteImport } from './routes/dashboard/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as DashboardPaymentRouteImport } from './routes/dashboard/payment'
+import { Route as DashboardOrderListRouteImport } from './routes/dashboard/order-list'
 import { Route as DashboardModifiersRouteImport } from './routes/dashboard/modifiers'
 import { Route as DashboardMenuRouteImport } from './routes/dashboard/menu'
-import { Route as DashboardManualEntryRouteImport } from './routes/dashboard/manual-entry'
 import { Route as DashboardItemsRouteImport } from './routes/dashboard/items'
 import { Route as DashboardHomeRouteImport } from './routes/dashboard/home'
 import { Route as DashboardCookingRouteImport } from './routes/dashboard/cooking'
@@ -83,6 +83,11 @@ const DashboardPaymentRoute = DashboardPaymentRouteImport.update({
   path: '/payment',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
+const DashboardOrderListRoute = DashboardOrderListRouteImport.update({
+  id: '/order-list',
+  path: '/order-list',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
 const DashboardModifiersRoute = DashboardModifiersRouteImport.update({
   id: '/modifiers',
   path: '/modifiers',
@@ -91,11 +96,6 @@ const DashboardModifiersRoute = DashboardModifiersRouteImport.update({
 const DashboardMenuRoute = DashboardMenuRouteImport.update({
   id: '/menu',
   path: '/menu',
-  getParentRoute: () => DashboardRouteRoute,
-} as any)
-const DashboardManualEntryRoute = DashboardManualEntryRouteImport.update({
-  id: '/manual-entry',
-  path: '/manual-entry',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
 const DashboardItemsRoute = DashboardItemsRouteImport.update({
@@ -133,9 +133,9 @@ export interface FileRoutesByFullPath {
   '/dashboard/cooking': typeof DashboardCookingRoute
   '/dashboard/home': typeof DashboardHomeRoute
   '/dashboard/items': typeof DashboardItemsRoute
-  '/dashboard/manual-entry': typeof DashboardManualEntryRoute
   '/dashboard/menu': typeof DashboardMenuRoute
   '/dashboard/modifiers': typeof DashboardModifiersRoute
+  '/dashboard/order-list': typeof DashboardOrderListRoute
   '/dashboard/payment': typeof DashboardPaymentRoute
   '/dashboard/': typeof DashboardIndexRoute
 }
@@ -152,9 +152,9 @@ export interface FileRoutesByTo {
   '/dashboard/cooking': typeof DashboardCookingRoute
   '/dashboard/home': typeof DashboardHomeRoute
   '/dashboard/items': typeof DashboardItemsRoute
-  '/dashboard/manual-entry': typeof DashboardManualEntryRoute
   '/dashboard/menu': typeof DashboardMenuRoute
   '/dashboard/modifiers': typeof DashboardModifiersRoute
+  '/dashboard/order-list': typeof DashboardOrderListRoute
   '/dashboard/payment': typeof DashboardPaymentRoute
   '/dashboard': typeof DashboardIndexRoute
 }
@@ -173,9 +173,9 @@ export interface FileRoutesById {
   '/dashboard/cooking': typeof DashboardCookingRoute
   '/dashboard/home': typeof DashboardHomeRoute
   '/dashboard/items': typeof DashboardItemsRoute
-  '/dashboard/manual-entry': typeof DashboardManualEntryRoute
   '/dashboard/menu': typeof DashboardMenuRoute
   '/dashboard/modifiers': typeof DashboardModifiersRoute
+  '/dashboard/order-list': typeof DashboardOrderListRoute
   '/dashboard/payment': typeof DashboardPaymentRoute
   '/dashboard/': typeof DashboardIndexRoute
 }
@@ -195,9 +195,9 @@ export interface FileRouteTypes {
     | '/dashboard/cooking'
     | '/dashboard/home'
     | '/dashboard/items'
-    | '/dashboard/manual-entry'
     | '/dashboard/menu'
     | '/dashboard/modifiers'
+    | '/dashboard/order-list'
     | '/dashboard/payment'
     | '/dashboard/'
   fileRoutesByTo: FileRoutesByTo
@@ -214,9 +214,9 @@ export interface FileRouteTypes {
     | '/dashboard/cooking'
     | '/dashboard/home'
     | '/dashboard/items'
-    | '/dashboard/manual-entry'
     | '/dashboard/menu'
     | '/dashboard/modifiers'
+    | '/dashboard/order-list'
     | '/dashboard/payment'
     | '/dashboard'
   id:
@@ -234,9 +234,9 @@ export interface FileRouteTypes {
     | '/dashboard/cooking'
     | '/dashboard/home'
     | '/dashboard/items'
-    | '/dashboard/manual-entry'
     | '/dashboard/menu'
     | '/dashboard/modifiers'
+    | '/dashboard/order-list'
     | '/dashboard/payment'
     | '/dashboard/'
   fileRoutesById: FileRoutesById
@@ -332,6 +332,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardPaymentRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
+    '/dashboard/order-list': {
+      id: '/dashboard/order-list'
+      path: '/order-list'
+      fullPath: '/dashboard/order-list'
+      preLoaderRoute: typeof DashboardOrderListRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
     '/dashboard/modifiers': {
       id: '/dashboard/modifiers'
       path: '/modifiers'
@@ -344,13 +351,6 @@ declare module '@tanstack/react-router' {
       path: '/menu'
       fullPath: '/dashboard/menu'
       preLoaderRoute: typeof DashboardMenuRouteImport
-      parentRoute: typeof DashboardRouteRoute
-    }
-    '/dashboard/manual-entry': {
-      id: '/dashboard/manual-entry'
-      path: '/manual-entry'
-      fullPath: '/dashboard/manual-entry'
-      preLoaderRoute: typeof DashboardManualEntryRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
     '/dashboard/items': {
@@ -389,9 +389,9 @@ interface DashboardRouteRouteChildren {
   DashboardCookingRoute: typeof DashboardCookingRoute
   DashboardHomeRoute: typeof DashboardHomeRoute
   DashboardItemsRoute: typeof DashboardItemsRoute
-  DashboardManualEntryRoute: typeof DashboardManualEntryRoute
   DashboardMenuRoute: typeof DashboardMenuRoute
   DashboardModifiersRoute: typeof DashboardModifiersRoute
+  DashboardOrderListRoute: typeof DashboardOrderListRoute
   DashboardPaymentRoute: typeof DashboardPaymentRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
 }
@@ -401,9 +401,9 @@ const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardCookingRoute: DashboardCookingRoute,
   DashboardHomeRoute: DashboardHomeRoute,
   DashboardItemsRoute: DashboardItemsRoute,
-  DashboardManualEntryRoute: DashboardManualEntryRoute,
   DashboardMenuRoute: DashboardMenuRoute,
   DashboardModifiersRoute: DashboardModifiersRoute,
+  DashboardOrderListRoute: DashboardOrderListRoute,
   DashboardPaymentRoute: DashboardPaymentRoute,
   DashboardIndexRoute: DashboardIndexRoute,
 }

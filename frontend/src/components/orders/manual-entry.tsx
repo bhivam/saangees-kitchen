@@ -4,12 +4,12 @@ import { InputWithIcon } from "../ui/input-with-icon";
 import { ManualEntryTable } from "./manual-entry-table";
 import { AddManualOrderDialog } from "./add-manual-order-dialog";
 
-export function ManualEntry() {
+export function OrderList() {
   const [search, setSearch] = useState("");
 
   return (
     <div className="w-full h-full flex flex-col p-10">
-      <h1 className="text-4xl font-bold">Manual Entry</h1>
+      <h1 className="text-4xl font-bold">Order List</h1>
       <div className="flex flex-row justify-between items-center my-3">
         <InputWithIcon
           Icon={Search}
