@@ -1,19 +1,15 @@
-import { useTRPC } from "@/trpc";
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { cn, toLocalDateString } from "@/lib/utils";
+import { DayPicker } from "react-day-picker";
+import "react-day-picker/style.css";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
+import { CalendarDays } from "lucide-react";
 
 interface DateSelectorProps {
   selectedDate: string | null;
   onDateSelect: (date: string) => void;
-}
-
-function getDateRange() {
-  const today = new Date();
-  const startDate = toLocalDateString(today);
-  const future = new Date(today);
-  future.setDate(future.getDate() + 7);
-  const endDate = toLocalDateString(future);
-  return { startDate, endDate };
+  className?: string;
 }
 
 function formatDateLabel(dateStr: string) {
@@ -24,65 +20,48 @@ function formatDateLabel(dateStr: string) {
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
+  const formatted = date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+  });
+
   if (date.getTime() === today.getTime()) {
-    return "Today";
+    return `Today, ${formatted}`;
   } else if (date.getTime() === tomorrow.getTime()) {
-    return "Tomorrow";
+    return `Tomorrow, ${formatted}`;
   } else {
-    return date.toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-    });
+    return formatted;
   }
 }
 
-export function DateSelector({ selectedDate, onDateSelect }: DateSelectorProps) {
-  const trpc = useTRPC();
-  const { startDate, endDate } = getDateRange();
-
-  const datesQuery = useQuery(
-    trpc.orders.getDatesWithOrders.queryOptions({
-      startDate,
-      endDate,
-    })
-  );
-
-  if (datesQuery.isLoading) {
-    return (
-      <div className="flex gap-2">
-        <div className="h-9 w-24 animate-pulse rounded-md bg-gray-200" />
-        <div className="h-9 w-24 animate-pulse rounded-md bg-gray-200" />
-      </div>
-    );
-  }
-
-  const dates = datesQuery.data || [];
-
-  if (dates.length === 0) {
-    return (
-      <div className="text-muted-foreground text-sm">
-        No orders in the next 7 days
-      </div>
-    );
-  }
+export function DateSelector({ selectedDate, onDateSelect, className }: DateSelectorProps) {
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   return (
-    <div className="flex flex-wrap gap-2">
-      {dates.map((date) => (
-        <button
-          key={date}
-          onClick={() => onDateSelect(date)}
-          className={cn(
-            "rounded-md px-4 py-2 text-sm font-medium transition-colors",
-            selectedDate === date
-              ? "bg-primary text-primary-foreground"
-              : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-          )}
-        >
-          {formatDateLabel(date)}
-        </button>
-      ))}
-    </div>
+    <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className={cn("justify-start gap-2", className)}>
+          <CalendarDays className="h-4 w-4" />
+          {selectedDate ? formatDateLabel(selectedDate) : "Select a date"}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-2" align="start">
+        <DayPicker
+          mode="single"
+          selected={
+            selectedDate
+              ? new Date(selectedDate + "T00:00:00")
+              : undefined
+          }
+          onSelect={(date) => {
+            if (date) {
+              onDateSelect(toLocalDateString(date));
+              setCalendarOpen(false);
+            }
+          }}
+          className="rounded-lg"
+        />
+      </PopoverContent>
+    </Popover>
   );
 }
