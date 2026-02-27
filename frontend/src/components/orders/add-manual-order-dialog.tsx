@@ -8,7 +8,7 @@ import {
   DialogTrigger,
 } from "../ui/dialog";
 import { Button } from "../ui/button";
-import { CalendarDays, Plus, Search, Trash2, UserPlus } from "lucide-react";
+import { Plus, Search, Trash2, UserPlus } from "lucide-react";
 import { QuantityStepper } from "../quantity-stepper";
 import { useState, useMemo } from "react";
 import { useTRPC, type RouterOutputs } from "@/trpc";
@@ -17,11 +17,9 @@ import { toast } from "sonner";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { formatCents, toLocalDateString } from "@/lib/utils";
-import { DayPicker } from "react-day-picker";
-import "react-day-picker/style.css";
 import { Checkbox } from "../ui/checkbox";
 import { Textarea } from "../ui/textarea";
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import { DateSelector } from "./date-selector";
 import { formatDate, type MenuEntry, type MenuItem } from "../customer-menu-view";
 
 type Order = RouterOutputs["orders"]["getOrders"][number];
@@ -344,8 +342,9 @@ function AddManualOrderDialogContent({
   const [step, setStep] = useState<"user" | "items">(
     dataAndMode.mode === "create" ? "user" : "items",
   );
-  const [browseDate, setBrowseDate] = useState<Date>(() => new Date());
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [browseDateStr, setBrowseDateStr] = useState<string>(
+    toLocalDateString(new Date())
+  );
   const [itemSearch, setItemSearch] = useState("");
   const [modifierDialogEntry, setModifierDialogEntry] =
     useState<MenuEntry | null>(null);
@@ -437,7 +436,6 @@ function AddManualOrderDialogContent({
     return items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
   }, [items]);
 
-  const browseDateStr = toLocalDateString(browseDate);
 
   const menuEntriesForSelectedDay = useMemo(() => {
     if (!menuEntriesQuery.data) return [];
@@ -564,18 +562,6 @@ function AddManualOrderDialogContent({
     }
   };
 
-  const formatBrowseDate = (date: Date) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const d = new Date(date);
-    d.setHours(0, 0, 0, 0);
-    const isToday = d.getTime() === today.getTime();
-    const formatted = d.toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-    });
-    return isToday ? `Today, ${formatted}` : formatted;
-  };
 
   if (step === "user") {
     const phoneDigits = newPhone.replace(/\D/g, "").slice(0, 10);
@@ -770,31 +756,11 @@ function AddManualOrderDialogContent({
           {/* Date selector + menu items + search (hidden in view mode and when locked) */}
           {dataAndMode.mode !== "view" && !isLocked && (
             <>
-              {/* Date selector popover */}
-              <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start gap-2"
-                  >
-                    <CalendarDays className="h-4 w-4" />
-                    {formatBrowseDate(browseDate)}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-2" align="start">
-                  <DayPicker
-                    mode="single"
-                    selected={browseDate}
-                    onSelect={(date) => {
-                      if (date) {
-                        setBrowseDate(date);
-                        setDatePickerOpen(false);
-                      }
-                    }}
-                    className="rounded-lg"
-                  />
-                </PopoverContent>
-              </Popover>
+              <DateSelector
+                selectedDate={browseDateStr}
+                onDateSelect={setBrowseDateStr}
+                className="w-full"
+              />
 
               {/* Menu items for selected day */}
               <div className="border rounded-md">

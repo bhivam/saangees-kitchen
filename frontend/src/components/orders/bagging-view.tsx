@@ -1,6 +1,6 @@
 import { useTRPC } from "@/trpc";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { DateSelector } from "./date-selector";
 import { Card, CardHeader, CardTitle, CardContent, CardAction } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,41 +10,19 @@ import { cn, toLocalDateString } from "@/lib/utils";
 export function BaggingView() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-
-  // Get available dates first
-  const today = new Date();
-  const startDate = toLocalDateString(today);
-  const future = new Date(today);
-  future.setDate(future.getDate() + 7);
-  const endDate = toLocalDateString(future);
-
-  const datesQuery = useQuery(
-    trpc.orders.getDatesWithOrders.queryOptions({
-      startDate,
-      endDate,
-    })
+  const [selectedDate, setSelectedDate] = useState<string>(
+    toLocalDateString(new Date())
   );
 
-  // Auto-select first date when available
-  useEffect(() => {
-    if (datesQuery.data && datesQuery.data.length > 0 && !selectedDate) {
-      setSelectedDate(datesQuery.data[0]);
-    }
-  }, [datesQuery.data, selectedDate]);
-
-  const baggingQuery = useQuery({
-    ...trpc.orders.getBaggingView.queryOptions({
-      date: selectedDate || "",
-    }),
-    enabled: !!selectedDate,
-  });
+  const baggingQuery = useQuery(
+    trpc.orders.getBaggingView.queryOptions({ date: selectedDate })
+  );
 
   const markBaggedMutation = useMutation({
     ...trpc.orders.markPersonBagged.mutationOptions(),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: trpc.orders.getBaggingView.queryKey({ date: selectedDate || "" }),
+        queryKey: trpc.orders.getBaggingView.queryKey({ date: selectedDate }),
       });
     },
   });
@@ -53,14 +31,12 @@ export function BaggingView() {
     ...trpc.orders.unmarkPersonBagged.mutationOptions(),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: trpc.orders.getBaggingView.queryKey({ date: selectedDate || "" }),
+        queryKey: trpc.orders.getBaggingView.queryKey({ date: selectedDate }),
       });
     },
   });
 
   const handleToggleBagged = (userId: string, allBagged: boolean) => {
-    if (!selectedDate) return;
-
     if (allBagged) {
       unmarkBaggedMutation.mutate({ userId, date: selectedDate });
     } else {
@@ -72,11 +48,7 @@ export function BaggingView() {
     <div className="space-y-6">
       <DateSelector selectedDate={selectedDate} onDateSelect={setSelectedDate} />
 
-      {!selectedDate && (
-        <div className="text-muted-foreground">Select a date to view bagging list</div>
-      )}
-
-      {selectedDate && baggingQuery.isLoading && (
+      {baggingQuery.isLoading && (
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-40 animate-pulse rounded-xl bg-gray-200" />
@@ -84,11 +56,11 @@ export function BaggingView() {
         </div>
       )}
 
-      {selectedDate && baggingQuery.data && baggingQuery.data.length === 0 && (
+      {baggingQuery.data && baggingQuery.data.length === 0 && (
         <div className="text-muted-foreground">No orders for this date</div>
       )}
 
-      {selectedDate && baggingQuery.data && baggingQuery.data.length > 0 && (
+      {baggingQuery.data && baggingQuery.data.length > 0 && (
         <div className="space-y-4">
           {baggingQuery.data.map((person) => (
             <Card
