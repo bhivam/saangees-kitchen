@@ -1,0 +1,2 @@
+ALTER TABLE "delivery_dates" ADD COLUMN "address_id" uuid;--> statement-breakpoint
+ALTER TABLE "delivery_dates" ADD CONSTRAINT "delivery_dates_address_id_addresses_id_fk" FOREIGN KEY ("address_id") REFERENCES "public"."addresses"("id") ON DELETE no action ON UPDATE no action;

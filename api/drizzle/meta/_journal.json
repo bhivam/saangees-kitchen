@@ -43,6 +43,13 @@
       "when": 1772170527939,
       "tag": "0005_bumpy_revanche",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1772223687104,
+      "tag": "0006_mean_energizer",
+      "breakpoints": true
     }
   ]
 }

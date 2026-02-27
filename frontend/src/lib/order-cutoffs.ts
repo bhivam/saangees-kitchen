@@ -38,3 +38,12 @@ export function isMenuVisible(dateStr: string): boolean {
   if (dateStr < todayStr) return false;
   return now.hour < MENU_HIDE_HOUR;
 }
+
+/** Returns whether delivery can still be toggled for the given date (before 5 PM ET). */
+export function isDeliveryModifiable(dateStr: string): boolean {
+  const now = getNowInET();
+  const todayStr = toDateStr(now.year, now.month, now.day);
+  if (dateStr > todayStr) return true;
+  if (dateStr < todayStr) return false;
+  return now.hour < MENU_HIDE_HOUR;
+}

@@ -215,6 +215,7 @@ export const deliveryDates = pgTable(
       .notNull()
       .references(() => user.id),
     date: date("date").notNull(),
+    addressId: uuid("address_id").references(() => addresses.id),
     ...sharedColumns,
   },
   (t) => [
@@ -226,6 +227,10 @@ export const deliveryDatesRelations = relations(deliveryDates, ({ one }) => ({
   user: one(user, {
     fields: [deliveryDates.userId],
     references: [user.id],
+  }),
+  address: one(addresses, {
+    fields: [deliveryDates.addressId],
+    references: [addresses.id],
   }),
 }));
 

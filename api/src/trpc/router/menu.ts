@@ -1,6 +1,6 @@
 import { createTRPCRouter, publicProcedure, adminProcedure } from "../index.js";
 import { z } from "zod";
-import { eq, inArray, isNull, and, sql, exists } from "drizzle-orm";
+import { eq, inArray, isNull, and, sql, exists, not } from "drizzle-orm";
 import { db } from "../../db/db.js";
 import { menuItems, menuEntries, orderItems } from "../../db/schema.js";
 import { TRPCError } from "@trpc/server";
@@ -245,7 +245,11 @@ export const menuRouter = createTRPCRouter({
           .from(menuEntries)
           .innerJoin(menuItems, eq(menuEntries.menuItemId, menuItems.id))
           .where(
-            and(eq(menuEntries.date, input.date), isNull(menuItems.deletedAt)),
+            and(
+              eq(menuEntries.date, input.date),
+              isNull(menuItems.deletedAt),
+              not(menuEntries.isCustom),
+            ),
           )
           .orderBy(menuEntries.sortOrder);
 
