@@ -40,7 +40,7 @@ const orderItems = [
   { name: "Cooking", icon: ChefHat, to: "/dashboard/cooking" },
   { name: "Bagging", icon: ShoppingBag, to: "/dashboard/bagging" },
   { name: "Payment", icon: CreditCard, to: "/dashboard/payment" },
-  { name: "Manual Entry", icon: NotebookPen, to: "/dashboard/manual-entry" },
+  { name: "Order List", icon: NotebookPen, to: "/dashboard/order-list" },
 ] as const;
 
 export function MerchantDashboardSidebar({

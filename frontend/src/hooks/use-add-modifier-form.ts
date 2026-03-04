@@ -18,6 +18,77 @@ export type ModifierGroupResult = {
   }>;
 };
 
+const modifierGroupSchema = z
+  .object({
+    name: z
+      .string({ error: "Name cannot be empty" })
+      .min(1, "Name is required"),
+    minSelect: z
+      .int({ error: "Min select cannot be empty" })
+      .nonnegative("Min select must be 0 or greater"),
+    maxSelect: z.int().positive("Max select must be positive").nullable(),
+    newModifierOptionsData: z
+      .object({
+        name: z.string().min(1, "Option name is required"),
+        priceDelta: z.int(),
+      })
+      .array()
+      .superRefine((options, ctx) => {
+        const seen = new Set<string>();
+        for (let i = 0; i < options.length; i++) {
+          const normalized = options[i]!.name.trim().toLowerCase();
+          if (seen.has(normalized)) {
+            ctx.addIssue({
+              code: "custom",
+              message: "Duplicate option name.",
+              path: [i, "name"],
+            });
+          }
+          seen.add(normalized);
+        }
+      }),
+  })
+  .superRefine((data, ctx) => {
+    if (data.maxSelect !== null && data.maxSelect < data.minSelect) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Max select must be greater than or equal to min select.",
+        path: ["maxSelect"],
+      });
+    }
+    const requiredCount = data.maxSelect ?? data.minSelect;
+    if (data.newModifierOptionsData.length < requiredCount) {
+      ctx.addIssue({
+        code: "custom",
+        message: `Need at least ${requiredCount} option(s).`,
+        path: ["newModifierOptionsData"],
+      });
+    }
+  });
+
+function extractFieldErrors(
+  formErrors: Array<unknown>,
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+  for (const errorObj of formErrors) {
+    if (typeof errorObj === "object" && errorObj !== null) {
+      for (const [fieldPath, fieldErrs] of Object.entries(errorObj)) {
+        if (!errors[fieldPath] && Array.isArray(fieldErrs)) {
+          const firstError = fieldErrs[0];
+          if (
+            firstError &&
+            typeof firstError === "object" &&
+            "message" in firstError
+          ) {
+            errors[fieldPath] = String(firstError.message);
+          }
+        }
+      }
+    }
+  }
+  return errors;
+}
+
 export function useAddModifierForm({
   setOpen,
   onSuccess,
@@ -111,33 +182,11 @@ export function useAddModifierForm({
       })) ?? ([] as { name: string; priceDelta: number }[]),
     },
     validators: {
-      onSubmit: z.object({
-        name: z.string({ error: "Name cannot be empty" }).min(1, "Name is required"),
-        minSelect: z.int({ error: "Min select cannot be empty" }).nonnegative("Min select must be 0 or greater"),
-        maxSelect: z.int().positive("Max select must be positive").nullable(),
-        newModifierOptionsData: z
-          .object({
-            name: z.string().min(1, "Option name is required"),
-            priceDelta: z.int(),
-          })
-          .array(),
-      }),
+      onSubmit: modifierGroupSchema,
+      onChange: modifierGroupSchema,
     },
     onSubmitInvalid: ({ formApi }) => {
-      const errors: Record<string, string> = {};
-      for (const errorObj of formApi.state.errors) {
-        if (typeof errorObj === "object" && errorObj !== null) {
-          for (const [fieldPath, fieldErrs] of Object.entries(errorObj)) {
-            if (!errors[fieldPath] && Array.isArray(fieldErrs)) {
-              const firstError = fieldErrs[0];
-              if (firstError && typeof firstError === "object" && "message" in firstError) {
-                errors[fieldPath] = String(firstError.message);
-              }
-            }
-          }
-        }
-      }
-      setFieldErrors(errors);
+      setFieldErrors(extractFieldErrors(formApi.state.errors));
     },
     onSubmit: async ({ value, formApi }) => {
       setFieldErrors({});

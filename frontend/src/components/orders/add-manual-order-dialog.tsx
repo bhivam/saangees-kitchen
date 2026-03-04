@@ -8,9 +8,9 @@ import {
   DialogTrigger,
 } from "../ui/dialog";
 import { Button } from "../ui/button";
-import { Plus, Search, Trash2, UserPlus } from "lucide-react";
+import { Plus, Search, Trash2, Truck, UserPlus } from "lucide-react";
 import { QuantityStepper } from "../quantity-stepper";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useTRPC, type RouterOutputs } from "@/trpc";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -21,8 +21,11 @@ import { Checkbox } from "../ui/checkbox";
 import { Textarea } from "../ui/textarea";
 import { DateSelector } from "./date-selector";
 import { formatDate, type MenuEntry, type MenuItem } from "../customer-menu-view";
+import { useModifierSelection } from "@/hooks/use-modifier-selection";
 
 type Order = RouterOutputs["orders"]["getOrders"][number];
+
+type DialogMenuEntry = Omit<MenuEntry, "orderingOpen">;
 
 type OrderItem = {
   orderItemId?: string;
@@ -41,59 +44,35 @@ function ModifierSelectionDialog({
   onClose,
   onAddToOrder,
 }: {
-  entry: MenuEntry;
+  entry: DialogMenuEntry;
   onClose: () => void;
   onAddToOrder: (item: OrderItem) => void;
 }) {
-  const [modifierSelections, setModifierSelections] = useState<
-    Record<string, string[]>
-  >(() => {
-    const initial: Record<string, string[]> = {};
-    for (const mg of entry.menuItem.modifierGroups) {
-      initial[mg.modifierGroup.id] = [];
-    }
-    return initial;
-  });
-  const [quantity, setQuantity] = useState(1);
-  const [specialInstructions, setSpecialInstructions] = useState("");
-
-  const calculateItemPrice = (selectedOptions: string[]) => {
-    let price = entry.menuItem.basePrice;
-    for (const optionId of selectedOptions) {
-      for (const mg of entry.menuItem.modifierGroups) {
-        const option = mg.modifierGroup.options.find((o) => o.id === optionId);
-        if (option) {
-          price += option.priceDelta;
-        }
-      }
-    }
-    return price;
-  };
-
-  const getModifierNames = (selectedOptions: string[]) => {
-    const names: string[] = [];
-    for (const optionId of selectedOptions) {
-      for (const mg of entry.menuItem.modifierGroups) {
-        const option = mg.modifierGroup.options.find((o) => o.id === optionId);
-        if (option) {
-          names.push(option.name);
-        }
-      }
-    }
-    return names;
-  };
-
-  const allSelectedOptions = Object.values(modifierSelections).flat();
-  const unitPrice = calculateItemPrice(allSelectedOptions);
+  const {
+    modifierSelections,
+    quantity,
+    specialInstructions,
+    toggleModifierOption,
+    setQuantity,
+    setSpecialInstructions,
+    modifierErrors,
+    validate,
+    calculateUnitPrice,
+    calculateTotalPrice,
+    getSelectedModifierNames,
+    getAllSelectedOptionIds,
+  } = useModifierSelection({ menuItem: entry.menuItem });
 
   const handleAdd = () => {
+    if (!validate()) return;
+    const unitPrice = calculateUnitPrice();
     onAddToOrder({
       menuEntryId: entry.id,
       menuEntryDate: entry.date,
       menuItemName: entry.menuItem.name,
       quantity,
-      modifierOptionIds: allSelectedOptions,
-      modifierNames: getModifierNames(allSelectedOptions),
+      modifierOptionIds: getAllSelectedOptionIds(),
+      modifierNames: getSelectedModifierNames(),
       unitPrice,
       specialInstructions: specialInstructions.trim() || undefined,
     });
@@ -151,27 +130,8 @@ function ModifierSelectionDialog({
                             <Checkbox
                               checked={isSelected}
                               disabled={isDisabled}
-                              onCheckedChange={(checked) => {
-                                setModifierSelections((prev) => {
-                                  const current =
-                                    prev[modifierGroup.id] ?? [];
-                                  if (checked) {
-                                    return {
-                                      ...prev,
-                                      [modifierGroup.id]: [
-                                        ...current,
-                                        option.id,
-                                      ],
-                                    };
-                                  } else {
-                                    return {
-                                      ...prev,
-                                      [modifierGroup.id]: current.filter(
-                                        (id) => id !== option.id,
-                                      ),
-                                    };
-                                  }
-                                });
+                              onCheckedChange={() => {
+                                toggleModifierOption(modifierGroup.id, option.id);
                               }}
                             />
                             <span className="flex-1">{option.name}</span>
@@ -185,6 +145,9 @@ function ModifierSelectionDialog({
                         );
                       })}
                     </div>
+                    {modifierErrors[modifierGroup.id] && (
+                      <p className="text-sm text-red-500 mt-1">{modifierErrors[modifierGroup.id]}</p>
+                    )}
                   </div>
                 ))}
             </div>
@@ -227,7 +190,7 @@ function ModifierSelectionDialog({
           {/* Price preview */}
           <div className="flex justify-between font-medium pt-2 border-t">
             <span>Item Total</span>
-            <span>{formatCents(unitPrice * quantity)}</span>
+            <span>{formatCents(calculateTotalPrice())}</span>
           </div>
         </div>
 
@@ -257,10 +220,6 @@ export function AddManualOrderDialog({
     | {
         data: Order | null;
         mode: "edit";
-      }
-    | {
-        data: Order | null;
-        mode: "view";
       };
 }) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
@@ -310,10 +269,6 @@ function AddManualOrderDialogContent({
     | {
         data: Order | null;
         mode: "edit";
-      }
-    | {
-        data: Order | null;
-        mode: "view";
       };
 }) {
   const trpc = useTRPC();
@@ -347,63 +302,41 @@ function AddManualOrderDialogContent({
   );
   const [itemSearch, setItemSearch] = useState("");
   const [modifierDialogEntry, setModifierDialogEntry] =
-    useState<MenuEntry | null>(null);
+    useState<DialogMenuEntry | null>(null);
   const [showCreateUser, setShowCreateUser] = useState(false);
   const [newPhone, setNewPhone] = useState("");
   const [newFirstName, setNewFirstName] = useState("");
   const [newLastName, setNewLastName] = useState("");
+  const [deliveryByDate, setDeliveryByDate] = useState<Record<string, boolean>>({});
+  const [addressByDate, setAddressByDate] = useState<Record<string, string | null>>({});
+  const [showAddressFormForDate, setShowAddressFormForDate] = useState<string | null>(null);
+  const [newAddrLine1, setNewAddrLine1] = useState("");
+  const [newAddrLine2, setNewAddrLine2] = useState("");
+  const [newAddrCity, setNewAddrCity] = useState("");
+  const [newAddrState, setNewAddrState] = useState("");
+  const [newAddrZip, setNewAddrZip] = useState("");
 
   const usersQuery = useQuery(
     trpc.users.searchUsers.queryOptions({ query: userSearch, limit: 20 }),
   );
   const selectedUser = usersQuery.data?.find((u) => u.id === selectedUserId);
 
-  const dates = useMemo(() => {
-    const result: string[] = [];
-    for (let i = 0; i < 30; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() + i);
-      result.push(toLocalDateString(date));
-    }
-    return result;
-  }, []);
-
   const menuEntriesQuery = useQuery(
-    trpc.menu.getByDateRange.queryOptions({ dates, includeCustom: true }),
+    trpc.menu.getByDateRange.queryOptions({
+      dates: [browseDateStr],
+      includeCustom: true,
+    }),
   );
+
 
   const menuItemsQuery = useQuery(trpc.menuItems.getMenuItems.queryOptions());
 
   const createOrderMutation = useMutation(
-    trpc.orders.createManualOrder.mutationOptions({
-      onSettled: (result, error) => {
-        if (error || !result) {
-          toast.error("Failed to create order.", { position: "bottom-center" });
-          return;
-        }
-        queryClient.invalidateQueries({
-          queryKey: trpc.orders.getOrders.queryKey(),
-        });
-        toast.success("Order created.", { position: "bottom-center" });
-        setOpen(false);
-      },
-    }),
+    trpc.orders.createManualOrder.mutationOptions(),
   );
 
   const updateOrderMutation = useMutation(
-    trpc.orders.updateManualOrder.mutationOptions({
-      onSettled: (result, error) => {
-        if (error || !result) {
-          toast.error("Failed to update order.", { position: "bottom-center" });
-          return;
-        }
-        queryClient.invalidateQueries({
-          queryKey: trpc.orders.getOrders.queryKey(),
-        });
-        toast.success("Order updated.", { position: "bottom-center" });
-        setOpen(false);
-      },
-    }),
+    trpc.orders.updateManualOrder.mutationOptions(),
   );
 
   const createUserMutation = useMutation(
@@ -432,9 +365,104 @@ function AddManualOrderDialogContent({
     trpc.menu.createCustomMenuEntry.mutationOptions(),
   );
 
+  const DELIVERY_FEE_CENTS = 500;
+
+  const uniqueDates = useMemo(() => {
+    const dateSet = new Set(items.map((i) => i.menuEntryDate));
+    return [...dateSet].sort();
+  }, [items]);
+
+  const addressesQuery = useQuery(
+    trpc.delivery.adminGetUserAddresses.queryOptions(
+      { userId: selectedUserId! },
+      { enabled: !!selectedUserId },
+    ),
+  );
+
+  const deliveryDatesQuery = useQuery(
+    trpc.delivery.adminGetDeliveryDatesForUser.queryOptions(
+      { userId: selectedUserId!, dates: uniqueDates },
+      { enabled: !!selectedUserId && uniqueDates.length > 0 },
+    ),
+  );
+
+  const initialAddressByDate = useRef<Record<string, string | null>>({});
+
+  // Sync deliveryByDate and addressByDate from server data
+  useEffect(() => {
+    if (!deliveryDatesQuery.data) return;
+    const serverDelivery: Record<string, boolean> = {};
+    const serverAddresses: Record<string, string | null> = {};
+    for (const d of deliveryDatesQuery.data) {
+      serverDelivery[d.date] = true;
+      serverAddresses[d.date] = d.addressId ?? null;
+    }
+    setDeliveryByDate((prev) => {
+      const next = { ...prev };
+      // Overwrite with server truth for dates the server knows about
+      for (const [date, val] of Object.entries(serverDelivery)) {
+        next[date] = val;
+      }
+      return next;
+    });
+    setAddressByDate((prev) => {
+      const next = { ...prev };
+      for (const [date, addr] of Object.entries(serverAddresses)) {
+        if (addr) next[date] = addr;
+      }
+      return next;
+    });
+    // Always update the baseline for change detection
+    initialAddressByDate.current = serverAddresses;
+  }, [deliveryDatesQuery.data]);
+
+  const adminSetDeliveryMutation = useMutation(
+    trpc.delivery.adminSetDeliveryForDates.mutationOptions(),
+  );
+
+  const adminSaveAddressMutation = useMutation(
+    trpc.delivery.adminSaveUserAddress.mutationOptions({
+      onSuccess: (data) => {
+        queryClient.invalidateQueries({
+          queryKey: trpc.delivery.adminGetUserAddresses.queryKey(),
+        });
+        if (showAddressFormForDate) {
+          setAddressByDate((prev) => ({
+            ...prev,
+            [showAddressFormForDate]: data.addressId,
+          }));
+        }
+        setShowAddressFormForDate(null);
+        setNewAddrLine1("");
+        setNewAddrLine2("");
+        setNewAddrCity("");
+        setNewAddrState("");
+        setNewAddrZip("");
+      },
+    }),
+  );
+
+  const alreadyScheduledDates = useMemo(() => {
+    const set = new Set<string>();
+    if (deliveryDatesQuery.data) {
+      for (const d of deliveryDatesQuery.data) set.add(d.date);
+    }
+    return set;
+  }, [deliveryDatesQuery.data]);
+
+  const newDeliveryDates = useMemo(() => {
+    return uniqueDates.filter(
+      (d) => deliveryByDate[d] && !alreadyScheduledDates.has(d),
+    );
+  }, [uniqueDates, deliveryByDate, alreadyScheduledDates]);
+
+  const deliveryTotal = newDeliveryDates.length * DELIVERY_FEE_CENTS;
+
   const total = useMemo(() => {
     return items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
   }, [items]);
+
+  const grandTotal = total + deliveryTotal;
 
 
   const menuEntriesForSelectedDay = useMemo(() => {
@@ -456,7 +484,7 @@ function AddManualOrderDialogContent({
     );
   };
 
-  const quickAddItem = (entry: MenuEntry) => {
+  const quickAddItem = (entry: DialogMenuEntry) => {
     setItems((prev) => {
       const existing = prev.findIndex(
         (i) =>
@@ -499,7 +527,7 @@ function AddManualOrderDialogContent({
     }
   };
 
-  const openModifierDialogForEntry = (entry: MenuEntry) => {
+  const openModifierDialogForEntry = (entry: DialogMenuEntry) => {
     setModifierDialogEntry(entry);
   };
 
@@ -533,32 +561,83 @@ function AddManualOrderDialogContent({
   const isLocked =
     dataAndMode.mode === "edit" && (dataAndMode.data?.centsPaid ?? 0) > 0;
 
-  const handleSubmit = () => {
-    if (!selectedUserId || items.length === 0) return;
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-    if (dataAndMode.mode === "edit" && dataAndMode.data) {
-      const updateItems = items.map((item) => ({
-        orderItemId: item.orderItemId,
-        menuEntryId: item.menuEntryId,
-        quantity: item.quantity,
-        modifierOptionIds: item.modifierOptionIds,
-        specialInstructions: item.specialInstructions,
-      }));
-      updateOrderMutation.mutate({
-        orderId: dataAndMode.data.id,
-        items: updateItems,
+  const handleSubmit = async () => {
+    if (!selectedUserId || items.length === 0) return;
+    setIsSubmitting(true);
+
+    try {
+      if (dataAndMode.mode === "edit" && dataAndMode.data) {
+        const updateItems = items.map((item) => ({
+          orderItemId: item.orderItemId,
+          menuEntryId: item.menuEntryId,
+          quantity: item.quantity,
+          modifierOptionIds: item.modifierOptionIds,
+          specialInstructions: item.specialInstructions,
+        }));
+        await updateOrderMutation.mutateAsync({
+          orderId: dataAndMode.data.id,
+          items: updateItems,
+        });
+      } else {
+        const createItems = items.map((item) => ({
+          menuEntryId: item.menuEntryId,
+          quantity: item.quantity,
+          modifierOptionIds: item.modifierOptionIds,
+          specialInstructions: item.specialInstructions,
+        }));
+        await createOrderMutation.mutateAsync({
+          userId: selectedUserId,
+          items: createItems,
+        });
+      }
+
+      // Update delivery dates grouped by address
+      const checkedDates = uniqueDates.filter((d) => deliveryByDate[d]);
+      const datesToUpdate = checkedDates.filter((d) => {
+        const isNew = !alreadyScheduledDates.has(d);
+        const addressChanged = initialAddressByDate.current[d] !== undefined &&
+          addressByDate[d] !== initialAddressByDate.current[d];
+        return isNew || addressChanged;
       });
-    } else {
-      const createItems = items.map((item) => ({
-        menuEntryId: item.menuEntryId,
-        quantity: item.quantity,
-        modifierOptionIds: item.modifierOptionIds,
-        specialInstructions: item.specialInstructions,
-      }));
-      createOrderMutation.mutate({
-        userId: selectedUserId,
-        items: createItems,
+
+      // Group dates by address and fire one mutation per unique address
+      const byAddress: Record<string, string[]> = {};
+      for (const d of datesToUpdate) {
+        const addr = addressByDate[d];
+        if (!addr) continue;
+        (byAddress[addr] ??= []).push(d);
+      }
+      for (const [addressId, dates] of Object.entries(byAddress)) {
+        await adminSetDeliveryMutation.mutateAsync({
+          userId: selectedUserId,
+          enable: dates,
+          disable: [],
+          addressId,
+        });
+      }
+
+      queryClient.invalidateQueries({
+        queryKey: trpc.orders.getOrders.queryKey(),
       });
+      queryClient.invalidateQueries({
+        queryKey: trpc.delivery.adminGetDeliveryDatesForUser.queryKey(),
+      });
+      toast.success(
+        dataAndMode.mode === "edit" ? "Order updated." : "Order created.",
+        { position: "bottom-center" },
+      );
+      setOpen(false);
+    } catch {
+      toast.error(
+        dataAndMode.mode === "edit"
+          ? "Failed to update order."
+          : "Failed to create order.",
+        { position: "bottom-center" },
+      );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -716,11 +795,9 @@ function AddManualOrderDialogContent({
     <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0 gap-0">
       <DialogHeader className="px-6 pt-6 pb-4">
         <DialogTitle>
-          {dataAndMode.mode === "view"
-            ? "View Order"
-            : dataAndMode.mode === "edit"
-              ? "Edit Order"
-              : "Create Manual Order"}
+          {dataAndMode.mode === "edit"
+            ? "Edit Order"
+            : "Create Manual Order"}
         </DialogTitle>
         <DialogDescription>
           {selectedUser
@@ -735,7 +812,7 @@ function AddManualOrderDialogContent({
         {/* Left column: User info + Browse menu + Search */}
         <div className="w-1/2 border-r overflow-y-auto px-6 py-3 space-y-4">
           {/* User info */}
-          {selectedUser && dataAndMode.mode !== "edit" && (
+          {selectedUser && dataAndMode.mode === "create" && (
             <div className="flex justify-between items-center p-3 bg-muted rounded-md">
               <div>
                 <div className="font-medium">{selectedUser.name}</div>
@@ -745,16 +822,14 @@ function AddManualOrderDialogContent({
                   </div>
                 )}
               </div>
-              {dataAndMode.mode !== "view" && (
-                <Button variant="ghost" size="sm" onClick={() => setStep("user")}>
-                  Change
-                </Button>
-              )}
+              <Button variant="ghost" size="sm" onClick={() => setStep("user")}>
+                Change
+              </Button>
             </div>
           )}
 
           {/* Date selector + menu items + search (hidden in view mode and when locked) */}
-          {dataAndMode.mode !== "view" && !isLocked && (
+          {!isLocked && (
             <>
               <DateSelector
                 selectedDate={browseDateStr}
@@ -916,7 +991,7 @@ function AddManualOrderDialogContent({
                         <span className="font-medium">
                           {formatCents(item.unitPrice * item.quantity)}
                         </span>
-                        {dataAndMode.mode === "view" || isLocked ? (
+                        {isLocked ? (
                           <span className="text-muted-foreground">
                             ×{item.quantity}
                           </span>
@@ -947,14 +1022,203 @@ function AddManualOrderDialogContent({
                 ))}
               </div>
             )}
+
+            {/* Delivery section */}
+            {items.length > 0 && selectedUserId && uniqueDates.length > 0 && (
+              <div className="mt-4 border rounded-md">
+                <div className="p-3 bg-muted font-medium border-b text-sm flex items-center gap-1.5">
+                  <Truck className="h-4 w-4" />
+                  Delivery
+                </div>
+                <div className="divide-y">
+                  {uniqueDates.map((date) => {
+                    const isAlreadyScheduled = alreadyScheduledDates.has(date);
+                    const isChecked = !!deliveryByDate[date];
+                    const isDisabled = isAlreadyScheduled;
+
+                    return (
+                      <div key={date}>
+                        <div className="px-3 py-2 flex items-center gap-2">
+                          <Checkbox
+                            id={`del-${date}`}
+                            checked={isChecked}
+                            disabled={isDisabled}
+                            onCheckedChange={(checked) => {
+                              const on = checked === true;
+                              setDeliveryByDate((prev) => ({
+                                ...prev,
+                                [date]: on,
+                              }));
+                              if (on && !addressByDate[date]) {
+                                const firstAddr = addressesQuery.data?.[0]?.addressId ?? null;
+                                setAddressByDate((prev) => ({
+                                  ...prev,
+                                  [date]: firstAddr,
+                                }));
+                              }
+                            }}
+                          />
+                          <label
+                            htmlFor={`del-${date}`}
+                            className="flex-1 text-sm flex items-center justify-between"
+                          >
+                            <span>{formatDate(date)}</span>
+                            <span className="text-muted-foreground text-xs">
+                              {isAlreadyScheduled && isChecked
+                                ? "Already scheduled"
+                                : isChecked
+                                  ? `Delivery +${formatCents(DELIVERY_FEE_CENTS)}`
+                                  : `Add delivery (${formatCents(DELIVERY_FEE_CENTS)})`}
+                            </span>
+                          </label>
+                        </div>
+
+                        {/* Per-date address picker */}
+                        {isChecked && (
+                          <div className="px-3 pb-2 pl-9 space-y-2">
+                            {showAddressFormForDate === date ? (
+                              <div className="space-y-2">
+                                <Label className="text-xs">New Address</Label>
+                                <Input
+                                  placeholder="Address line 1"
+                                  value={newAddrLine1}
+                                  onChange={(e) => setNewAddrLine1(e.target.value)}
+                                  className="h-8 text-sm"
+                                />
+                                <Input
+                                  placeholder="Address line 2 (optional)"
+                                  value={newAddrLine2}
+                                  onChange={(e) => setNewAddrLine2(e.target.value)}
+                                  className="h-8 text-sm"
+                                />
+                                <div className="grid grid-cols-3 gap-2">
+                                  <Input
+                                    placeholder="City"
+                                    value={newAddrCity}
+                                    onChange={(e) => setNewAddrCity(e.target.value)}
+                                    className="h-8 text-sm"
+                                  />
+                                  <Input
+                                    placeholder="State"
+                                    value={newAddrState}
+                                    onChange={(e) => setNewAddrState(e.target.value)}
+                                    className="h-8 text-sm"
+                                  />
+                                  <Input
+                                    placeholder="ZIP"
+                                    value={newAddrZip}
+                                    onChange={(e) => setNewAddrZip(e.target.value)}
+                                    className="h-8 text-sm"
+                                  />
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    className="h-7 text-xs"
+                                    disabled={
+                                      !newAddrLine1.trim() ||
+                                      !newAddrCity.trim() ||
+                                      !newAddrState.trim() ||
+                                      !newAddrZip.trim() ||
+                                      adminSaveAddressMutation.isPending
+                                    }
+                                    onClick={() =>
+                                      adminSaveAddressMutation.mutate({
+                                        userId: selectedUserId!,
+                                        addressLine1: newAddrLine1.trim(),
+                                        addressLine2: newAddrLine2.trim() || undefined,
+                                        city: newAddrCity.trim(),
+                                        state: newAddrState.trim(),
+                                        postalCode: newAddrZip.trim(),
+                                      })
+                                    }
+                                  >
+                                    {adminSaveAddressMutation.isPending
+                                      ? "Saving..."
+                                      : "Save"}
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 text-xs"
+                                    onClick={() => setShowAddressFormForDate(null)}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 min-w-0">
+                                {addressesQuery.data && addressesQuery.data.length > 0 ? (
+                                  <select
+                                    className="flex-1 min-w-0 h-8 rounded-md border border-input bg-background px-2 text-sm truncate"
+                                    value={addressByDate[date] ?? ""}
+                                    onChange={(e) =>
+                                      setAddressByDate((prev) => ({
+                                        ...prev,
+                                        [date]: e.target.value || null,
+                                      }))
+                                    }
+                                  >
+                                    <option value="">Select address...</option>
+                                    {addressesQuery.data.map((addr) => (
+                                      <option key={addr.addressId} value={addr.addressId}>
+                                        {addr.addressLine1}, {addr.city}, {addr.state}{" "}
+                                        {addr.postalCode}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <span className="flex-1 text-xs text-muted-foreground">
+                                    No saved addresses
+                                  </span>
+                                )}
+                                <Button
+                                  variant="link"
+                                  size="sm"
+                                  className="h-auto p-0 text-xs shrink-0"
+                                  onClick={() => setShowAddressFormForDate(date)}
+                                >
+                                  + New
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
+
           {/* Total */}
           {items.length > 0 && (
             <div className="px-6 py-3 border-t">
-              <div className="flex justify-between font-medium text-lg">
-                <span>Total</span>
-                <span>{formatCents(total)}</span>
-              </div>
+              {deliveryTotal > 0 ? (
+                <div className="space-y-1">
+                  <div className="flex justify-between text-sm">
+                    <span>Subtotal</span>
+                    <span>{formatCents(total)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>
+                      Delivery ({newDeliveryDates.length} &times; {formatCents(DELIVERY_FEE_CENTS)})
+                    </span>
+                    <span>{formatCents(deliveryTotal)}</span>
+                  </div>
+                  <div className="flex justify-between font-medium text-lg pt-1 border-t">
+                    <span>Total</span>
+                    <span>{formatCents(grandTotal)}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex justify-between font-medium text-lg">
+                  <span>Total</span>
+                  <span>{formatCents(total)}</span>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -962,33 +1226,29 @@ function AddManualOrderDialogContent({
 
       {/* Sticky footer */}
       <div className="px-6 py-4 border-t flex justify-end gap-2">
-        {dataAndMode.mode === "view" ? (
-          <Button onClick={() => setOpen(false)}>Close</Button>
-        ) : (
-          <>
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              disabled={
-                isLocked ||
-                !selectedUserId ||
-                items.length === 0 ||
-                createOrderMutation.isPending ||
-                updateOrderMutation.isPending
-              }
-              onClick={handleSubmit}
-            >
-              {createOrderMutation.isPending || updateOrderMutation.isPending
-                ? dataAndMode.mode === "edit"
-                  ? "Updating..."
-                  : "Creating..."
-                : dataAndMode.mode === "edit"
-                  ? "Update Order"
-                  : "Create Order"}
-            </Button>
-          </>
-        )}
+        <>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            disabled={
+              isLocked ||
+              !selectedUserId ||
+              items.length === 0 ||
+              isSubmitting ||
+              uniqueDates.some((d) => deliveryByDate[d] && !addressByDate[d])
+            }
+            onClick={handleSubmit}
+          >
+            {isSubmitting
+              ? dataAndMode.mode === "edit"
+                ? "Updating..."
+                : "Creating..."
+              : dataAndMode.mode === "edit"
+                ? "Update Order"
+                : "Create Order"}
+          </Button>
+        </>
       </div>
 
       {/* Modifier sub-dialog */}

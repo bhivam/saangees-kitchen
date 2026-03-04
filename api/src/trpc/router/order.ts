@@ -11,8 +11,10 @@ import {
   orderItemModifiers,
   menuEntries,
   modifierOptions,
+  deliveryDates,
 } from "../../db/schema.js";
-import { inArray, eq, and, sql } from "drizzle-orm";
+import { DELIVERY_FEE_CENTS } from "./delivery.js";
+import { inArray, eq, and, sql, isNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { isOrderingOpen } from "../../lib/order-cutoffs.js";
 
@@ -199,7 +201,7 @@ export const ordersRouter = createTRPCRouter({
 
     // Fetch all orders for current user with items and menu entries
     const userOrders = await db.query.orders.findMany({
-      where: eq(orders.userId, ctx.user.id),
+      where: and(eq(orders.userId, ctx.user.id), isNull(orders.deletedAt)),
       with: {
         items: {
           with: {
@@ -234,16 +236,19 @@ export const ordersRouter = createTRPCRouter({
     const pastWeeksOrders: typeof userOrders = [];
 
     for (const order of userOrders) {
-      // Use the first item's date to classify the order (all items are in same week)
-      const firstItemDate = order.items[0]
-        ? normalizeDate(order.items[0].menuEntry.date)
-        : null;
+      // Delivery orders use order.date; standard orders use first item's date
+      const orderDate =
+        order.type === "delivery"
+          ? normalizeDate(order.date)
+          : order.items[0]
+            ? normalizeDate(order.items[0].menuEntry.date)
+            : null;
 
-      if (!firstItemDate) continue;
+      if (!orderDate) continue;
 
-      if (firstItemDate >= sundayStr && firstItemDate <= saturdayStr) {
+      if (orderDate >= sundayStr && orderDate <= saturdayStr) {
         thisWeekOrders.push(order);
-      } else if (firstItemDate < sundayStr) {
+      } else if (orderDate < sundayStr) {
         pastWeeksOrders.push(order);
       }
     }
@@ -280,6 +285,29 @@ export const ordersRouter = createTRPCRouter({
     >();
 
     for (const order of thisWeekOrders) {
+      // Add delivery orders as a line item
+      if (order.type === "delivery") {
+        const deliveryDate = normalizeDate(order.date);
+        if (!deliveryDate) continue;
+
+        let dateItems = itemsByDate.get(deliveryDate);
+        if (!dateItems) {
+          dateItems = new Map();
+          itemsByDate.set(deliveryDate, dateItems);
+        }
+
+        const deliveryKey = "__delivery__";
+        if (!dateItems.has(deliveryKey)) {
+          dateItems.set(deliveryKey, {
+            menuItemName: "Delivery",
+            quantity: 1,
+            unitPrice: DELIVERY_FEE_CENTS,
+            modifiers: [],
+          });
+        }
+        continue;
+      }
+
       for (const item of order.items) {
         const itemDate = normalizeDate(item.menuEntry.date);
         if (!itemDate) continue;
@@ -583,6 +611,29 @@ export const ordersRouter = createTRPCRouter({
         }
       }
 
+      // Query delivery dates for this date to find delivery users
+      const deliveryRows = await db.query.deliveryDates.findMany({
+        where: and(
+          eq(deliveryDates.date, input.date),
+          isNull(deliveryDates.deletedAt),
+        ),
+        with: { user: true },
+      });
+
+      const deliveryUserIds = new Set(deliveryRows.map((r) => r.userId));
+
+      // Add delivery-only users (no food items) to byUser map
+      for (const row of deliveryRows) {
+        if (!byUser.has(row.userId)) {
+          byUser.set(row.userId, {
+            userId: row.userId,
+            userName: row.user.name,
+            userPhone: row.user.phoneNumber,
+            itemsBySku: new Map(),
+          });
+        }
+      }
+
       // Check for duplicate names and create display names
       const users = Array.from(byUser.values());
       const nameCounts = new Map<string, number>();
@@ -609,6 +660,7 @@ export const ordersRouter = createTRPCRouter({
           displayName,
           items,
           allBagged: items.every((i) => i.allBagged),
+          hasDelivery: deliveryUserIds.has(u.userId),
         };
       });
     }),
@@ -689,6 +741,7 @@ export const ordersRouter = createTRPCRouter({
 
   getPaymentView: adminProcedure.query(async () => {
     const allOrders = await db.query.orders.findMany({
+      where: isNull(orders.deletedAt),
       with: {
         user: true,
       },
@@ -725,6 +778,7 @@ export const ordersRouter = createTRPCRouter({
         amountOwed: total - centsPaid,
         isPaidInFull: centsPaid >= total,
         createdAt: order.createdAt,
+        type: order.type,
       };
     });
   }),
@@ -1147,6 +1201,25 @@ export const ordersRouter = createTRPCRouter({
         await tx
           .delete(orderItems)
           .where(eq(orderItems.orderId, input.orderId));
+
+        // If this is a delivery order, also soft-delete the corresponding delivery_dates row
+        if (existingOrder.type === "delivery" && existingOrder.date) {
+          const dateStr = typeof existingOrder.date === "string"
+            ? existingOrder.date
+            : normalizeDate(existingOrder.date);
+          if (dateStr) {
+            await tx
+              .update(deliveryDates)
+              .set({ deletedAt: new Date(), updatedAt: new Date() })
+              .where(
+                and(
+                  eq(deliveryDates.userId, existingOrder.userId),
+                  eq(deliveryDates.date, dateStr),
+                  isNull(deliveryDates.deletedAt),
+                ),
+              );
+          }
+        }
 
         // Delete the order
         await tx.delete(orders).where(eq(orders.id, input.orderId));

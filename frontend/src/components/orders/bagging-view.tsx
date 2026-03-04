@@ -4,7 +4,7 @@ import { useState } from "react";
 import { DateSelector } from "./date-selector";
 import { Card, CardHeader, CardTitle, CardContent, CardAction } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Check } from "lucide-react";
+import { Check, Truck } from "lucide-react";
 import { cn, toLocalDateString } from "@/lib/utils";
 
 export function BaggingView() {
@@ -18,23 +18,25 @@ export function BaggingView() {
     trpc.orders.getBaggingView.queryOptions({ date: selectedDate })
   );
 
-  const markBaggedMutation = useMutation({
-    ...trpc.orders.markPersonBagged.mutationOptions(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: trpc.orders.getBaggingView.queryKey({ date: selectedDate }),
-      });
-    },
-  });
+  const markBaggedMutation = useMutation(
+    trpc.orders.markPersonBagged.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: trpc.orders.getBaggingView.queryKey({ date: selectedDate }),
+        });
+      },
+    }),
+  );
 
-  const unmarkBaggedMutation = useMutation({
-    ...trpc.orders.unmarkPersonBagged.mutationOptions(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: trpc.orders.getBaggingView.queryKey({ date: selectedDate }),
-      });
-    },
-  });
+  const unmarkBaggedMutation = useMutation(
+    trpc.orders.unmarkPersonBagged.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: trpc.orders.getBaggingView.queryKey({ date: selectedDate }),
+        });
+      },
+    }),
+  );
 
   const handleToggleBagged = (userId: string, allBagged: boolean) => {
     if (allBagged) {
@@ -71,6 +73,12 @@ export function BaggingView() {
                 <CardTitle className="flex items-center gap-2">
                   {person.allBagged && <Check className="h-5 w-5 text-green-600" />}
                   {person.displayName}
+                  {person.hasDelivery && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+                      <Truck className="h-3 w-3" />
+                      Delivery
+                    </span>
+                  )}
                 </CardTitle>
                 <CardAction>
                   <Button
