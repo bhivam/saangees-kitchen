@@ -1,5 +1,6 @@
 import {
   pgTable,
+  pgEnum,
   integer,
   text,
   timestamp,
@@ -109,6 +110,8 @@ export const menuItemModifierGroupsRelations = relations(
   }),
 );
 
+export const orderTypeEnum = pgEnum("order_type", ["standard", "delivery"]);
+
 export const orders = pgTable("orders", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: text("user_id")
@@ -119,6 +122,8 @@ export const orders = pgTable("orders", {
   total: integer("total_amount"),
   centsPaid: integer("cents_paid").notNull().default(0),
   isManual: boolean("is_manual").notNull().default(false),
+  type: orderTypeEnum("type").notNull().default("standard"),
+  date: date("date"),
   ...sharedColumns,
 });
 

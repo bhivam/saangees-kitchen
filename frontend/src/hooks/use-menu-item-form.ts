@@ -50,6 +50,7 @@ export function useMenuItemForm(
     } as Omit<MenuItemSelection, "itemId" | "menuEntryId">,
     validators: {
       onSubmit: validationSchema,
+      onChange: validationSchema,
     },
     onSubmitInvalid: ({ formApi }) => {
       const errors: Record<string, string> = {};

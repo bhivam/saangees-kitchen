@@ -144,6 +144,7 @@ export function useAddItemForm({
     },
     validators: {
       onSubmit: itemSchema,
+      onChange: itemSchema,
     },
     onSubmitInvalid: ({ formApi }) => {
       const errors: Record<string, string> = {};

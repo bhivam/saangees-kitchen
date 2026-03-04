@@ -12,7 +12,7 @@ import { useTRPC } from "@/trpc";
 import { cn, formatCents } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CentsInput } from "@/components/ui/cents-input";
-import { Check, X } from "lucide-react";
+import { X } from "lucide-react";
 
 export function PaymentTable() {
   const trpc = useTRPC();
@@ -23,25 +23,27 @@ export function PaymentTable() {
 
   const paymentQuery = useQuery(trpc.orders.getPaymentView.queryOptions());
 
-  const updatePaymentMutation = useMutation({
-    ...trpc.orders.updatePayment.mutationOptions(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: trpc.orders.getPaymentView.queryKey(),
-      });
-      setEditingOrderId(null);
-      setPaymentCents(0);
-    },
-  });
+  const updatePaymentMutation = useMutation(
+    trpc.orders.updatePayment.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: trpc.orders.getPaymentView.queryKey(),
+        });
+        setEditingOrderId(null);
+        setPaymentCents(0);
+      },
+    }),
+  );
 
-  const markPaidInFullMutation = useMutation({
-    ...trpc.orders.markPaidInFull.mutationOptions(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: trpc.orders.getPaymentView.queryKey(),
-      });
-    },
-  });
+  const markPaidInFullMutation = useMutation(
+    trpc.orders.markPaidInFull.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: trpc.orders.getPaymentView.queryKey(),
+        });
+      },
+    }),
+  );
 
   const handleUpdatePayment = (orderId: string, total: number) => {
     if (paymentCents > total) {
@@ -108,11 +110,12 @@ export function PaymentTable() {
           <TableHeader>
             <TableRow>
               <TableHead>User</TableHead>
+              <TableHead>Type</TableHead>
               <TableHead>Date</TableHead>
               <TableHead>Total</TableHead>
               <TableHead>Paid</TableHead>
               <TableHead>Owed</TableHead>
-              <TableHead>Actions</TableHead>
+              <TableHead></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -132,6 +135,17 @@ export function PaymentTable() {
                       )}
                     </div>
                   </div>
+                </TableCell>
+                <TableCell>
+                  <span
+                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                      order.type === "delivery"
+                        ? "bg-purple-100 text-purple-800"
+                        : "bg-green-100 text-green-800"
+                    }`}
+                  >
+                    {order.type === "delivery" ? "Delivery" : "Food"}
+                  </span>
                 </TableCell>
                 <TableCell>
                   {new Date(order.createdAt).toLocaleDateString("en-US", {

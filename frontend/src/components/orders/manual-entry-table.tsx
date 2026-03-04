@@ -15,7 +15,6 @@ import {
   ArrowUp,
   ArrowUpDown,
   Edit,
-  Eye,
   Trash,
 } from "lucide-react";
 import {
@@ -85,7 +84,7 @@ function getPageNumbers(
 
 export function ManualEntryTable({ search }: { search: string }) {
   const [editOrder, setEditOrder] = useState<Order | null>(null);
-  const [viewOrder, setViewOrder] = useState<Order | null>(null);
+
   const [deleteOrder, setDeleteOrder] = useState<Order | null>(null);
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -222,7 +221,8 @@ export function ManualEntryTable({ search }: { search: string }) {
                 <SortIcon field="total" />
               </button>
             </TableHead>
-            <TableHead className="w-1/6">Type</TableHead>
+            <TableHead className="w-1/12">Source</TableHead>
+            <TableHead className="w-1/12">Type</TableHead>
             <TableHead className="w-1/12" />
             <TableHead className="w-1/12" />
           </TableRow>
@@ -262,15 +262,26 @@ export function ManualEntryTable({ search }: { search: string }) {
                 </span>
               </TableCell>
               <TableCell>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() =>
-                    order.isManual ? setEditOrder(order) : setViewOrder(order)
-                  }
+                <span
+                  className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                    order.type === "delivery"
+                      ? "bg-purple-100 text-purple-800"
+                      : "bg-gray-100 text-gray-800"
+                  }`}
                 >
-                  {order.isManual ? <Edit /> : <Eye />}
-                </Button>
+                  {order.type === "delivery" ? "Delivery" : "Food"}
+                </span>
+              </TableCell>
+              <TableCell>
+                {order.type !== "delivery" && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setEditOrder(order)}
+                  >
+                    <Edit />
+                  </Button>
+                )}
               </TableCell>
               <TableCell>
                 <Button
@@ -335,11 +346,8 @@ export function ManualEntryTable({ search }: { search: string }) {
         onOpenChange={(open: boolean) => !open && setEditOrder(null)}
         dataAndMode={{ data: editOrder, mode: "edit" }}
       />
-      <AddManualOrderDialog
-        open={viewOrder !== null}
-        onOpenChange={(open: boolean) => !open && setViewOrder(null)}
-        dataAndMode={{ data: viewOrder, mode: "view" }}
-      />
+
+
       <AlertDialog
         open={deleteOrder !== null}
         onOpenChange={(open) => !open && setDeleteOrder(null)}
