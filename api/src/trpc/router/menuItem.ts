@@ -139,7 +139,20 @@ export const menuItemsRouter = createTRPCRouter({
 
     if (!result) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-    return result;
+    return result.map((item) => ({
+      ...item,
+      modifierGroups: item.modifierGroups
+        .filter((mg) => mg.modifierGroup.deletedAt === null)
+        .map((mg) => ({
+          ...mg,
+          modifierGroup: {
+            ...mg.modifierGroup,
+            options: mg.modifierGroup.options.filter(
+              (opt) => opt.deletedAt === null,
+            ),
+          },
+        })),
+    }));
   }),
 
   deleteMenuItem: adminProcedure

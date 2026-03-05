@@ -46,6 +46,7 @@ export const menuRouter = createTRPCRouter({
           and(
             eq(menuEntries.date, input.date),
             isNull(menuItems.deletedAt),
+            isNull(menuEntries.deletedAt),
             eq(menuEntries.isCustom, false),
           ),
         )
@@ -68,9 +69,10 @@ export const menuRouter = createTRPCRouter({
 
       const menuEntriesResult = await db.query.menuEntries.findMany({
         where: input.includeCustom
-          ? inArray(menuEntries.date, input.dates)
+          ? and(inArray(menuEntries.date, input.dates), isNull(menuEntries.deletedAt))
           : and(
               inArray(menuEntries.date, input.dates),
+              isNull(menuEntries.deletedAt),
               eq(menuEntries.isCustom, false),
             ),
         extras: ({ id }) => ({ hasOrders: hasOrdersQuery(id) }),
@@ -146,6 +148,7 @@ export const menuRouter = createTRPCRouter({
     const menuEntriesResult = await db.query.menuEntries.findMany({
       where: and(
         inArray(menuEntries.date, dates),
+        isNull(menuEntries.deletedAt),
         eq(menuEntries.isCustom, false),
       ),
       with: {
@@ -205,14 +208,17 @@ export const menuRouter = createTRPCRouter({
       const uniqueItems = [...new Set(input.itemsToSave)];
 
       return await db.transaction(async (tx) => {
-        await tx
-          .delete(menuEntries)
-          .where(
-            and(
-              eq(menuEntries.date, input.date),
-              inArray(menuEntries.id, input.itemsToDelete),
-            ),
-          );
+        if (input.itemsToDelete.length > 0) {
+          await tx
+            .update(menuEntries)
+            .set({ deletedAt: new Date(), updatedAt: new Date() })
+            .where(
+              and(
+                eq(menuEntries.date, input.date),
+                inArray(menuEntries.id, input.itemsToDelete),
+              ),
+            );
+        }
 
         if (uniqueItems.length > 0) {
           const entries = uniqueItems.map((itemId, index) => ({
@@ -230,7 +236,7 @@ export const menuRouter = createTRPCRouter({
                 menuEntries.menuItemId,
                 menuEntries.isCustom,
               ],
-              set: { sortOrder: sql`excluded.sort_order` },
+              set: { sortOrder: sql`excluded.sort_order`, deletedAt: null },
             });
         }
 
@@ -248,6 +254,7 @@ export const menuRouter = createTRPCRouter({
             and(
               eq(menuEntries.date, input.date),
               isNull(menuItems.deletedAt),
+              isNull(menuEntries.deletedAt),
               not(menuEntries.isCustom),
             ),
           )
@@ -273,6 +280,7 @@ export const menuRouter = createTRPCRouter({
           eq(menuEntries.date, input.date),
           eq(menuEntries.menuItemId, input.menuItemId),
           eq(menuEntries.isCustom, true),
+          isNull(menuEntries.deletedAt),
         ),
         extras: ({ id }) => ({ hasOrders: hasOrdersQuery(id) }),
         with: {
@@ -297,7 +305,7 @@ export const menuRouter = createTRPCRouter({
 
       // Verify the menu item exists
       const menuItem = await db.query.menuItems.findFirst({
-        where: eq(menuItems.id, input.menuItemId),
+        where: and(eq(menuItems.id, input.menuItemId), isNull(menuItems.deletedAt)),
         with: {
           modifierGroups: {
             with: {
@@ -352,7 +360,7 @@ export const menuRouter = createTRPCRouter({
     )
     .mutation(async ({ input }) => {
       const entry = await db.query.menuEntries.findFirst({
-        where: eq(menuEntries.id, input.entryId),
+        where: and(eq(menuEntries.id, input.entryId), isNull(menuEntries.deletedAt)),
       });
 
       if (!entry) {

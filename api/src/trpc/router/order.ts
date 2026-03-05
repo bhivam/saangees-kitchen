@@ -166,6 +166,7 @@ export const ordersRouter = createTRPCRouter({
 
   getOrders: adminProcedure.query(async () => {
     return await db.query.orders.findMany({
+      where: isNull(orders.deletedAt),
       with: {
         user: true,
         items: {
@@ -396,6 +397,7 @@ export const ordersRouter = createTRPCRouter({
           and(
             sql`${menuEntries.date} >= ${input.startDate}`,
             sql`${menuEntries.date} <= ${input.endDate}`,
+            isNull(orderItems.deletedAt),
           ),
         );
 
@@ -410,6 +412,7 @@ export const ordersRouter = createTRPCRouter({
     .query(async ({ input }) => {
       // Get all order items for this date with their modifiers
       const items = await db.query.orderItems.findMany({
+        where: isNull(orderItems.deletedAt),
         with: {
           menuEntry: {
             with: { menuItem: true },
@@ -529,6 +532,7 @@ export const ordersRouter = createTRPCRouter({
     .query(async ({ input }) => {
       // Get all order items for this date
       const items = await db.query.orderItems.findMany({
+        where: isNull(orderItems.deletedAt),
         with: {
           order: {
             with: { user: true },
@@ -675,6 +679,7 @@ export const ordersRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       // Find all order item IDs for this user on this date
       const items = await db.query.orderItems.findMany({
+        where: isNull(orderItems.deletedAt),
         with: {
           order: true,
           menuEntry: true,
@@ -712,6 +717,7 @@ export const ordersRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       // Find all order item IDs for this user on this date
       const items = await db.query.orderItems.findMany({
+        where: isNull(orderItems.deletedAt),
         with: {
           order: true,
           menuEntry: true,
@@ -793,7 +799,7 @@ export const ordersRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       // Get the order to validate
       const order = await db.query.orders.findFirst({
-        where: eq(orders.id, input.orderId),
+        where: and(eq(orders.id, input.orderId), isNull(orders.deletedAt)),
       });
 
       if (!order) {
@@ -827,7 +833,7 @@ export const ordersRouter = createTRPCRouter({
     .input(z.object({ orderId: z.uuid() }))
     .mutation(async ({ input }) => {
       const order = await db.query.orders.findFirst({
-        where: eq(orders.id, input.orderId),
+        where: and(eq(orders.id, input.orderId), isNull(orders.deletedAt)),
       });
 
       if (!order) {
@@ -998,7 +1004,7 @@ export const ordersRouter = createTRPCRouter({
 
       // Verify the order exists
       const existingOrder = await db.query.orders.findFirst({
-        where: eq(orders.id, input.orderId),
+        where: and(eq(orders.id, input.orderId), isNull(orders.deletedAt)),
       });
 
       if (!existingOrder) {
@@ -1017,7 +1023,7 @@ export const ordersRouter = createTRPCRouter({
 
       // Fetch existing order items with their menu entries
       const existingOrderItems = await db.query.orderItems.findMany({
-        where: eq(orderItems.orderId, input.orderId),
+        where: and(eq(orderItems.orderId, input.orderId), isNull(orderItems.deletedAt)),
         with: {
           menuEntry: true,
           modifiers: true,
@@ -1085,13 +1091,18 @@ export const ordersRouter = createTRPCRouter({
           (i) => !keptItemIds.has(i.id),
         );
 
-        // Delete modifiers and items that are no longer in the list
+        // Soft-delete modifiers and items that are no longer in the list
         if (itemsToDelete.length > 0) {
           const deleteIds = itemsToDelete.map((i) => i.id);
+          const now = new Date();
           await tx
-            .delete(orderItemModifiers)
+            .update(orderItemModifiers)
+            .set({ deletedAt: now, updatedAt: now })
             .where(inArray(orderItemModifiers.orderItemId, deleteIds));
-          await tx.delete(orderItems).where(inArray(orderItems.id, deleteIds));
+          await tx
+            .update(orderItems)
+            .set({ deletedAt: now, updatedAt: now })
+            .where(inArray(orderItems.id, deleteIds));
         }
 
         // Update order total
@@ -1171,7 +1182,7 @@ export const ordersRouter = createTRPCRouter({
     .input(z.object({ orderId: z.uuid() }))
     .mutation(async ({ input }) => {
       const existingOrder = await db.query.orders.findFirst({
-        where: eq(orders.id, input.orderId),
+        where: and(eq(orders.id, input.orderId), isNull(orders.deletedAt)),
       });
 
       if (!existingOrder) {
@@ -1182,24 +1193,30 @@ export const ordersRouter = createTRPCRouter({
       }
 
       return await db.transaction(async (tx) => {
-        // Delete order item modifiers first
+        const now = new Date();
+
+        // Soft-delete order item modifiers first
         const existingItems = await tx
           .select({ id: orderItems.id })
           .from(orderItems)
           .where(eq(orderItems.orderId, input.orderId));
 
         if (existingItems.length > 0) {
-          await tx.delete(orderItemModifiers).where(
-            inArray(
-              orderItemModifiers.orderItemId,
-              existingItems.map((i) => i.id),
-            ),
-          );
+          await tx
+            .update(orderItemModifiers)
+            .set({ deletedAt: now, updatedAt: now })
+            .where(
+              inArray(
+                orderItemModifiers.orderItemId,
+                existingItems.map((i) => i.id),
+              ),
+            );
         }
 
-        // Delete order items
+        // Soft-delete order items
         await tx
-          .delete(orderItems)
+          .update(orderItems)
+          .set({ deletedAt: now, updatedAt: now })
           .where(eq(orderItems.orderId, input.orderId));
 
         // If this is a delivery order, also soft-delete the corresponding delivery_dates row
@@ -1210,7 +1227,7 @@ export const ordersRouter = createTRPCRouter({
           if (dateStr) {
             await tx
               .update(deliveryDates)
-              .set({ deletedAt: new Date(), updatedAt: new Date() })
+              .set({ deletedAt: now, updatedAt: now })
               .where(
                 and(
                   eq(deliveryDates.userId, existingOrder.userId),
@@ -1221,8 +1238,11 @@ export const ordersRouter = createTRPCRouter({
           }
         }
 
-        // Delete the order
-        await tx.delete(orders).where(eq(orders.id, input.orderId));
+        // Soft-delete the order
+        await tx
+          .update(orders)
+          .set({ deletedAt: now, updatedAt: now })
+          .where(eq(orders.id, input.orderId));
 
         return { success: true, orderId: input.orderId };
       });
