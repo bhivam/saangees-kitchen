@@ -11,7 +11,7 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { isDeliveryModifiable } from "../../lib/order-cutoffs.js";
 
-export const DELIVERY_FEE_CENTS = 500;
+export const DELIVERY_FEE_CENTS = 400;
 
 function normalizeDate(date: string | Date | null | undefined): string | null {
   if (!date) return null;

@@ -9,14 +9,18 @@ import { useCart } from "@/hooks/use-cart";
 import { useTRPC } from "@/trpc";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { parseSkuId, type Cart } from "@/lib/cart";
-import { formatDate, type MenuEntry } from "@/components/customer-menu-view";
+import {
+  formatDate,
+  type MenuEntry,
+  type ComboEntry,
+} from "@/components/customer-menu-view";
 import { formatCents } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { isDeliveryModifiable } from "@/lib/order-cutoffs";
 import { AddressPickerDialog } from "@/components/address-picker-dialog";
 
-const DELIVERY_FEE_CENTS = 500;
+const DELIVERY_FEE_CENTS = 400;
 
 export const Route = createFileRoute("/checkout")({
   component: Checkout,
@@ -105,22 +109,103 @@ function Checkout() {
   );
   const [showAddressPicker, setShowAddressPicker] = useState(false);
 
-  const { data: menuEntries, isLoading: menuLoading } = useQuery(
+  const { data: weekMenu, isLoading: menuLoading } = useQuery(
     trpc.menu.getWeekMenu.queryOptions(),
   );
 
-  const hydratedItems = menuEntries
-    ? hydrateCartFromMenu(cart, menuEntries)
-    : [];
+  const menuEntries = weekMenu?.menuEntries ?? [];
+  const comboEntriesData = weekMenu?.comboEntries ?? [];
 
-  // Get unique sorted dates from hydrated items
-  const itemDates = [
-    ...new Set(
-      hydratedItems
-        .map((item) => item.date)
-        .filter((d): d is string => d !== null),
-    ),
-  ].sort();
+  const hydratedItems =
+    menuEntries.length > 0 ? hydrateCartFromMenu(cart, menuEntries) : [];
+
+  // Hydrate combos
+  const hydratedCombos = Object.entries(cart.combos ?? {}).flatMap(
+    ([comboSkuId, comboData]) => {
+      if (!comboData) return [];
+      const entry = comboEntriesData.find(
+        (e) => e.id === comboData.comboEntryId,
+      );
+      if (!entry) return [];
+
+      let totalPrice = 0;
+      const comboOrderItems: Array<{
+        menuEntryId: string;
+        modifierOptionIds: string[];
+        specialInstructions?: string;
+      }> = [];
+
+      for (const item of comboData.items) {
+        const comboItem = entry.combo.comboItems.find(
+          (ci) => ci.menuItem.id === item.menuItemId,
+        );
+        if (!comboItem) return [];
+        let itemPrice = comboItem.menuItem.basePrice;
+        const modifierOptionIds: string[] = [];
+        for (const [groupId, optionIds] of Object.entries(
+          item.modifierSelections,
+        )) {
+          const group = comboItem.menuItem.modifierGroups.find(
+            (mg) => mg.modifierGroup.id === groupId,
+          )?.modifierGroup;
+          if (!group) continue;
+          for (const optId of optionIds) {
+            const opt = group.options.find((o) => o.id === optId);
+            if (opt) {
+              itemPrice += opt.priceDelta;
+              modifierOptionIds.push(optId);
+            }
+          }
+        }
+        totalPrice += itemPrice;
+
+        // Find the menu entry for this item on this date
+        const menuEntry = menuEntries.find(
+          (me) => me.menuItem.id === item.menuItemId && me.date === entry.date,
+        );
+        if (menuEntry) {
+          comboOrderItems.push({
+            menuEntryId: menuEntry.id,
+            modifierOptionIds,
+            specialInstructions: item.specialInstructions,
+          });
+        }
+      }
+      totalPrice -= entry.combo.discountAmount;
+
+      return [
+        {
+          comboSkuId,
+          comboEntryId: comboData.comboEntryId,
+          date: entry.date,
+          comboName: entry.combo.name,
+          discountAmount: entry.combo.discountAmount,
+          totalPrice,
+          quantity: comboData.quantity,
+          orderItems: comboOrderItems,
+          items: comboData.items.map((item) => {
+            const comboItem = entry.combo.comboItems.find(
+              (ci) => ci.menuItemId === item.menuItemId,
+            )!;
+            return {
+              name: comboItem.menuItem.name,
+              specialInstructions: item.specialInstructions,
+            };
+          }),
+        },
+      ];
+    },
+  );
+
+  // Get unique sorted dates from hydrated items + combos
+  const allDatesSet = new Set<string>();
+  for (const item of hydratedItems) {
+    if (item.date) allDatesSet.add(item.date);
+  }
+  for (const combo of hydratedCombos) {
+    if (combo.date) allDatesSet.add(combo.date);
+  }
+  const itemDates = [...allDatesSet].sort();
 
   // Delivery queries
   const { data: existingDeliveryDates } = useQuery(
@@ -224,10 +309,15 @@ function Checkout() {
     );
   }
 
-  const foodTotal = hydratedItems.reduce(
-    (sum, item) => sum + item.totalPrice * item.quantity,
-    0,
-  );
+  const foodTotal =
+    hydratedItems.reduce(
+      (sum, item) => sum + item.totalPrice * item.quantity,
+      0,
+    ) +
+    hydratedCombos.reduce(
+      (sum, combo) => sum + combo.totalPrice * combo.quantity,
+      0,
+    );
 
   const alreadyScheduledDates = new Set(
     existingDeliveryDates?.map((d) => d.date) ?? [],
@@ -247,7 +337,7 @@ function Checkout() {
 
   const placeOrderDisabled =
     isSubmitting ||
-    hydratedItems.length === 0 ||
+    (hydratedItems.length === 0 && hydratedCombos.length === 0) ||
     (anyDeliveryOn && !selectedAddressId);
 
   const handleDeliveryToggle = (date: string, checked: boolean) => {
@@ -262,9 +352,16 @@ function Checkout() {
       specialInstructions: item.specialInstructions,
     }));
 
+    // Build combo order data
+    const comboOrderData = hydratedCombos.map((combo) => ({
+      comboEntryId: combo.comboEntryId,
+      items: combo.orderItems,
+    }));
+
     // Create the order
     const orderData = await createOrderMutation.mutateAsync({
       items: orderItems,
+      combos: comboOrderData.length > 0 ? comboOrderData : undefined,
     });
 
     // Set delivery for dates
@@ -283,7 +380,7 @@ function Checkout() {
       });
     }
 
-    setCart({ items: {} });
+    setCart({ items: {}, combos: {} });
     setOrderSuccess({ orderId: orderData.orderId, total: grandTotal });
   };
 
@@ -302,6 +399,9 @@ function Checkout() {
         {itemDates.map((date) => {
           const itemsForDate = hydratedItems.filter(
             (item) => item.date === date,
+          );
+          const combosForDate = hydratedCombos.filter(
+            (combo) => combo.date === date,
           );
           const isAlreadyScheduled = alreadyScheduledDates.has(date);
           const isChecked = !!deliveryByDate[date];
@@ -327,6 +427,37 @@ function Checkout() {
                     )}
                   </div>
                   <p>{formatCents(item.totalPrice * item.quantity)}</p>
+                </div>
+              ))}
+
+              {combosForDate.map((combo) => (
+                <div
+                  key={combo.comboSkuId}
+                  className="flex justify-between border-b py-2"
+                >
+                  <div>
+                    <p className="font-semibold">{combo.comboName}</p>
+                    <div className="pl-2">
+                      {combo.items.map((item, i) => (
+                        <p key={i} className="text-sm text-gray-600">
+                          {item.name}
+                          {item.specialInstructions && (
+                            <span className="italic text-gray-500">
+                              {" "}
+                              — {item.specialInstructions}
+                            </span>
+                          )}
+                        </p>
+                      ))}
+                    </div>
+                    <p className="text-sm text-green-700">
+                      Discount: -{formatCents(combo.discountAmount)}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      Qty: {combo.quantity}
+                    </p>
+                  </div>
+                  <p>{formatCents(combo.totalPrice * combo.quantity)}</p>
                 </div>
               ))}
 
@@ -442,3 +573,4 @@ function Checkout() {
     </div>
   );
 }
+

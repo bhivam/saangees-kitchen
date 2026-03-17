@@ -9,12 +9,14 @@ import {
   orders,
   orderItems,
   orderItemModifiers,
+  orderCombos,
+  comboEntries,
   menuEntries,
   modifierOptions,
   deliveryDates,
 } from "../../db/schema.js";
 import { DELIVERY_FEE_CENTS } from "./delivery.js";
-import { inArray, eq, and, sql, isNull } from "drizzle-orm";
+import { inArray, eq, and, sql, isNull, isNotNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { isOrderingOpen } from "../../lib/order-cutoffs.js";
 
@@ -41,22 +43,45 @@ export const ordersRouter = createTRPCRouter({
             specialInstructions: z.string().optional(),
           }),
         ),
+        combos: z
+          .array(
+            z.object({
+              comboEntryId: z.uuid(),
+              items: z.array(
+                z.object({
+                  menuEntryId: z.uuid(),
+                  modifierOptionIds: z.array(z.uuid()),
+                  specialInstructions: z.string().optional(),
+                }),
+              ),
+            }),
+          )
+          .optional()
+          .default([]),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      if (input.items.length === 0) {
+      if (input.items.length === 0 && input.combos.length === 0) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Order must have at least one item",
+          message: "Order must have at least one item or combo",
         });
       }
 
+      console.log(JSON.stringify(input), undefined, 2);
+
       // Fetch menu entries with their menu items to get base prices
-      const menuEntryIds = input.items.map((i) => i.menuEntryId);
-      const entriesWithItems = await db.query.menuEntries.findMany({
-        where: inArray(menuEntries.id, menuEntryIds),
-        with: { menuItem: true },
-      });
+      const allMenuEntryIds = [
+        ...input.items.map((i) => i.menuEntryId),
+        ...input.combos.flatMap((c) => c.items.map((i) => i.menuEntryId)),
+      ];
+      const entriesWithItems =
+        allMenuEntryIds.length > 0
+          ? await db.query.menuEntries.findMany({
+              where: inArray(menuEntries.id, allMenuEntryIds),
+              with: { menuItem: true },
+            })
+          : [];
 
       const entryMap = new Map(entriesWithItems.map((e) => [e.id, e]));
 
@@ -72,9 +97,12 @@ export const ordersRouter = createTRPCRouter({
       }
 
       // Fetch all modifier options for price lookup
-      const allModifierOptionIds = input.items.flatMap(
-        (i) => i.modifierOptionIds,
-      );
+      const allModifierOptionIds = [
+        ...input.items.flatMap((i) => i.modifierOptionIds),
+        ...input.combos.flatMap((c) =>
+          c.items.flatMap((i) => i.modifierOptionIds),
+        ),
+      ];
       const modifierOptionsData =
         allModifierOptionIds.length > 0
           ? await db
@@ -83,6 +111,17 @@ export const ordersRouter = createTRPCRouter({
               .where(inArray(modifierOptions.id, allModifierOptionIds))
           : [];
       const optionMap = new Map(modifierOptionsData.map((o) => [o.id, o]));
+
+      // Fetch combo entries for discount lookup
+      const comboEntryIds = input.combos.map((c) => c.comboEntryId);
+      const comboEntriesData =
+        comboEntryIds.length > 0
+          ? await db.query.comboEntries.findMany({
+              where: inArray(comboEntries.id, comboEntryIds),
+              with: { combo: true },
+            })
+          : [];
+      const comboEntryMap = new Map(comboEntriesData.map((ce) => [ce.id, ce]));
 
       // Calculate total and validate
       let total = 0;
@@ -109,6 +148,41 @@ export const ordersRouter = createTRPCRouter({
         total += itemTotal * item.quantity;
       }
 
+      // Calculate combo totals
+      for (const combo of input.combos) {
+        const comboEntry = comboEntryMap.get(combo.comboEntryId);
+        if (!comboEntry) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Combo entry ${combo.comboEntryId} not found`,
+          });
+        }
+
+        let comboItemsTotal = 0;
+        for (const item of combo.items) {
+          const entry = entryMap.get(item.menuEntryId);
+          if (!entry) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `Menu entry ${item.menuEntryId} not found`,
+            });
+          }
+          let itemPrice = entry.menuItem.basePrice;
+          for (const optId of item.modifierOptionIds) {
+            const opt = optionMap.get(optId);
+            if (!opt) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: `Modifier option ${optId} not found`,
+              });
+            }
+            itemPrice += opt.priceDelta;
+          }
+          comboItemsTotal += itemPrice;
+        }
+        total += comboItemsTotal - comboEntry.combo.discountAmount;
+      }
+
       // Create order within transaction
       return await db.transaction(async (tx) => {
         const [order] = await tx
@@ -127,7 +201,7 @@ export const ordersRouter = createTRPCRouter({
           });
         }
 
-        // Create order items
+        // Create standalone order items
         for (const item of input.items) {
           const entry = entryMap.get(item.menuEntryId)!;
           const [orderItem] = await tx
@@ -148,7 +222,6 @@ export const ordersRouter = createTRPCRouter({
             });
           }
 
-          // Create order item modifiers
           if (item.modifierOptionIds.length > 0) {
             await tx.insert(orderItemModifiers).values(
               item.modifierOptionIds.map((optId) => ({
@@ -157,6 +230,59 @@ export const ordersRouter = createTRPCRouter({
                 optionPrice: optionMap.get(optId)!.priceDelta,
               })),
             );
+          }
+        }
+
+        // Create combo order items
+        for (const combo of input.combos) {
+          const comboEntry = comboEntryMap.get(combo.comboEntryId)!;
+
+          const [orderCombo] = await tx
+            .insert(orderCombos)
+            .values({
+              orderId: order.id,
+              comboEntryId: combo.comboEntryId,
+              discountAmount: comboEntry.combo.discountAmount,
+            })
+            .returning();
+
+          if (!orderCombo) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Failed to create order combo",
+            });
+          }
+
+          for (const item of combo.items) {
+            const entry = entryMap.get(item.menuEntryId)!;
+            const [orderItem] = await tx
+              .insert(orderItems)
+              .values({
+                orderId: order.id,
+                menuEntryId: item.menuEntryId,
+                orderComboId: orderCombo.id,
+                quantity: 1,
+                itemPrice: entry.menuItem.basePrice,
+                specialInstructions: item.specialInstructions ?? null,
+              })
+              .returning();
+
+            if (!orderItem) {
+              throw new TRPCError({
+                code: "INTERNAL_SERVER_ERROR",
+                message: "Failed to create combo order item",
+              });
+            }
+
+            if (item.modifierOptionIds.length > 0) {
+              await tx.insert(orderItemModifiers).values(
+                item.modifierOptionIds.map((optId) => ({
+                  orderItemId: orderItem.id,
+                  modifierOptionId: optId,
+                  optionPrice: optionMap.get(optId)!.priceDelta,
+                })),
+              );
+            }
           }
         }
 
@@ -176,6 +302,13 @@ export const ordersRouter = createTRPCRouter({
             },
             modifiers: {
               with: { modifierOption: true },
+            },
+          },
+        },
+        orderCombos: {
+          with: {
+            comboEntry: {
+              with: { combo: true },
             },
           },
         },
@@ -214,9 +347,43 @@ export const ordersRouter = createTRPCRouter({
             },
           },
         },
+        orderCombos: {
+          with: {
+            comboEntry: {
+              with: { combo: true },
+            },
+          },
+        },
       },
       orderBy: (orders, { desc }) => [desc(orders.createdAt)],
     });
+
+    // Fetch combo items separately (drizzle's relational query scopes them
+    // to the orderCombos parent, so they don't appear in order.items)
+    const orderIds = userOrders.map((o) => o.id);
+    const allComboItems =
+      orderIds.length > 0
+        ? await db.query.orderItems.findMany({
+            where: and(
+              inArray(orderItems.orderId, orderIds),
+              isNotNull(orderItems.orderComboId),
+            ),
+            with: {
+              modifiers: {
+                with: { modifierOption: true },
+              },
+            },
+          })
+        : [];
+
+    // Group combo items by orderComboId for price calculation
+    const comboItemsByComboId = new Map<string, typeof allComboItems>();
+    for (const item of allComboItems) {
+      if (!item.orderComboId) continue;
+      const existing = comboItemsByComboId.get(item.orderComboId) ?? [];
+      existing.push(item);
+      comboItemsByComboId.set(item.orderComboId, existing);
+    }
 
     // Format day labels helper
     const formatDayLabel = (dateStr: string) => {
@@ -238,16 +405,20 @@ export const ordersRouter = createTRPCRouter({
 
     for (const order of userOrders) {
       // Delivery orders use order.date; standard orders use first item's date
+      // Fall back to combo entry date for combo-only orders
       const orderDate =
         order.type === "delivery"
           ? normalizeDate(order.date)
           : order.items[0]
             ? normalizeDate(order.items[0].menuEntry.date)
-            : null;
+            : order.orderCombos[0]
+              ? normalizeDate(order.orderCombos[0].comboEntry.date)
+              : null;
 
       if (!orderDate) continue;
 
       if (orderDate >= sundayStr && orderDate <= saturdayStr) {
+        console.log(order);
         thisWeekOrders.push(order);
       } else if (orderDate < sundayStr) {
         pastWeeksOrders.push(order);
@@ -310,6 +481,9 @@ export const ordersRouter = createTRPCRouter({
       }
 
       for (const item of order.items) {
+        // Skip items that belong to a combo (they're handled below)
+        if (item.orderComboId) continue;
+
         const itemDate = normalizeDate(item.menuEntry.date);
         if (!itemDate) continue;
 
@@ -345,6 +519,43 @@ export const ordersRouter = createTRPCRouter({
               name: m.modifierOption.name,
               optionPrice: m.optionPrice,
             })),
+          });
+        }
+      }
+
+      // Add combos as line items
+      for (const orderCombo of order.orderCombos) {
+        const comboDate = normalizeDate(orderCombo.comboEntry.date);
+        if (!comboDate) continue;
+
+        const comboKey = `__combo__${orderCombo.comboEntryId}`;
+
+        // Combo total: sum of item prices + modifiers - discount
+        const comboItems = comboItemsByComboId.get(orderCombo.id) ?? [];
+        const itemsTotal = comboItems.reduce((sum, item) => {
+          const modTotal = item.modifiers.reduce(
+            (s, m) => s + m.optionPrice,
+            0,
+          );
+          return sum + item.itemPrice + modTotal;
+        }, 0);
+        const comboTotal = itemsTotal - orderCombo.discountAmount;
+
+        let dateItems = itemsByDate.get(comboDate);
+        if (!dateItems) {
+          dateItems = new Map();
+          itemsByDate.set(comboDate, dateItems);
+        }
+
+        const existingCombo = dateItems.get(comboKey);
+        if (existingCombo) {
+          existingCombo.quantity += 1;
+        } else {
+          dateItems.set(comboKey, {
+            menuItemName: orderCombo.comboEntry.combo.name,
+            quantity: 1,
+            unitPrice: comboTotal,
+            modifiers: [],
           });
         }
       }
@@ -478,7 +689,10 @@ export const ordersRouter = createTRPCRouter({
           if (existingNote) {
             existingNote.quantity += item.quantity;
           } else {
-            entry.notesByText.set(noteKey, { display: note, quantity: item.quantity });
+            entry.notesByText.set(noteKey, {
+              display: note,
+              quantity: item.quantity,
+            });
           }
         }
       }
@@ -866,29 +1080,53 @@ export const ordersRouter = createTRPCRouter({
             specialInstructions: z.string().optional(),
           }),
         ),
+        combos: z
+          .array(
+            z.object({
+              comboEntryId: z.uuid(),
+              items: z.array(
+                z.object({
+                  menuEntryId: z.uuid(),
+                  modifierOptionIds: z.array(z.uuid()),
+                  specialInstructions: z.string().optional(),
+                }),
+              ),
+            }),
+          )
+          .optional()
+          .default([]),
       }),
     )
     .mutation(async ({ input }) => {
-      if (input.items.length === 0) {
+      if (input.items.length === 0 && input.combos.length === 0) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Order must have at least one item",
+          message: "Order must have at least one item or combo",
         });
       }
 
       // Fetch menu entries with their menu items to get base prices
-      const menuEntryIds = input.items.map((i) => i.menuEntryId);
-      const entriesWithItems = await db.query.menuEntries.findMany({
-        where: inArray(menuEntries.id, menuEntryIds),
-        with: { menuItem: true },
-      });
+      const allMenuEntryIds = [
+        ...input.items.map((i) => i.menuEntryId),
+        ...input.combos.flatMap((c) => c.items.map((i) => i.menuEntryId)),
+      ];
+      const entriesWithItems =
+        allMenuEntryIds.length > 0
+          ? await db.query.menuEntries.findMany({
+              where: inArray(menuEntries.id, allMenuEntryIds),
+              with: { menuItem: true },
+            })
+          : [];
 
       const entryMap = new Map(entriesWithItems.map((e) => [e.id, e]));
 
       // Fetch all modifier options for price lookup
-      const allModifierOptionIds = input.items.flatMap(
-        (i) => i.modifierOptionIds,
-      );
+      const allModifierOptionIds = [
+        ...input.items.flatMap((i) => i.modifierOptionIds),
+        ...input.combos.flatMap((c) =>
+          c.items.flatMap((i) => i.modifierOptionIds),
+        ),
+      ];
       const modifierOptionsData =
         allModifierOptionIds.length > 0
           ? await db
@@ -897,6 +1135,17 @@ export const ordersRouter = createTRPCRouter({
               .where(inArray(modifierOptions.id, allModifierOptionIds))
           : [];
       const optionMap = new Map(modifierOptionsData.map((o) => [o.id, o]));
+
+      // Fetch combo entries for discount lookup
+      const comboEntryIds = input.combos.map((c) => c.comboEntryId);
+      const comboEntriesData =
+        comboEntryIds.length > 0
+          ? await db.query.comboEntries.findMany({
+              where: inArray(comboEntries.id, comboEntryIds),
+              with: { combo: true },
+            })
+          : [];
+      const comboEntryMap = new Map(comboEntriesData.map((ce) => [ce.id, ce]));
 
       // Calculate total and validate
       let total = 0;
@@ -923,6 +1172,39 @@ export const ordersRouter = createTRPCRouter({
         total += itemTotal * item.quantity;
       }
 
+      for (const combo of input.combos) {
+        const comboEntry = comboEntryMap.get(combo.comboEntryId);
+        if (!comboEntry) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Combo entry ${combo.comboEntryId} not found`,
+          });
+        }
+        let comboItemsTotal = 0;
+        for (const item of combo.items) {
+          const entry = entryMap.get(item.menuEntryId);
+          if (!entry) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `Menu entry ${item.menuEntryId} not found`,
+            });
+          }
+          let itemPrice = entry.menuItem.basePrice;
+          for (const optId of item.modifierOptionIds) {
+            const opt = optionMap.get(optId);
+            if (!opt) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: `Modifier option ${optId} not found`,
+              });
+            }
+            itemPrice += opt.priceDelta;
+          }
+          comboItemsTotal += itemPrice;
+        }
+        total += comboItemsTotal - comboEntry.combo.discountAmount;
+      }
+
       // Create order within transaction
       return await db.transaction(async (tx) => {
         const [order] = await tx
@@ -942,7 +1224,7 @@ export const ordersRouter = createTRPCRouter({
           });
         }
 
-        // Create order items
+        // Create standalone order items
         for (const item of input.items) {
           const entry = entryMap.get(item.menuEntryId)!;
           const [orderItem] = await tx
@@ -963,7 +1245,6 @@ export const ordersRouter = createTRPCRouter({
             });
           }
 
-          // Create order item modifiers
           if (item.modifierOptionIds.length > 0) {
             await tx.insert(orderItemModifiers).values(
               item.modifierOptionIds.map((optId) => ({
@@ -972,6 +1253,58 @@ export const ordersRouter = createTRPCRouter({
                 optionPrice: optionMap.get(optId)!.priceDelta,
               })),
             );
+          }
+        }
+
+        // Create combo order items
+        for (const combo of input.combos) {
+          const comboEntry = comboEntryMap.get(combo.comboEntryId)!;
+          const [orderCombo] = await tx
+            .insert(orderCombos)
+            .values({
+              orderId: order.id,
+              comboEntryId: combo.comboEntryId,
+              discountAmount: comboEntry.combo.discountAmount,
+            })
+            .returning();
+
+          if (!orderCombo) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Failed to create order combo",
+            });
+          }
+
+          for (const item of combo.items) {
+            const entry = entryMap.get(item.menuEntryId)!;
+            const [orderItem] = await tx
+              .insert(orderItems)
+              .values({
+                orderId: order.id,
+                menuEntryId: item.menuEntryId,
+                orderComboId: orderCombo.id,
+                quantity: 1,
+                itemPrice: entry.menuItem.basePrice,
+                specialInstructions: item.specialInstructions ?? null,
+              })
+              .returning();
+
+            if (!orderItem) {
+              throw new TRPCError({
+                code: "INTERNAL_SERVER_ERROR",
+                message: "Failed to create combo order item",
+              });
+            }
+
+            if (item.modifierOptionIds.length > 0) {
+              await tx.insert(orderItemModifiers).values(
+                item.modifierOptionIds.map((optId) => ({
+                  orderItemId: orderItem.id,
+                  modifierOptionId: optId,
+                  optionPrice: optionMap.get(optId)!.priceDelta,
+                })),
+              );
+            }
           }
         }
 
@@ -1023,7 +1356,10 @@ export const ordersRouter = createTRPCRouter({
 
       // Fetch existing order items with their menu entries
       const existingOrderItems = await db.query.orderItems.findMany({
-        where: and(eq(orderItems.orderId, input.orderId), isNull(orderItems.deletedAt)),
+        where: and(
+          eq(orderItems.orderId, input.orderId),
+          isNull(orderItems.deletedAt),
+        ),
         with: {
           menuEntry: true,
           modifiers: true,
@@ -1221,9 +1557,10 @@ export const ordersRouter = createTRPCRouter({
 
         // If this is a delivery order, also soft-delete the corresponding delivery_dates row
         if (existingOrder.type === "delivery" && existingOrder.date) {
-          const dateStr = typeof existingOrder.date === "string"
-            ? existingOrder.date
-            : normalizeDate(existingOrder.date);
+          const dateStr =
+            typeof existingOrder.date === "string"
+              ? existingOrder.date
+              : normalizeDate(existingOrder.date);
           if (dateStr) {
             await tx
               .update(deliveryDates)

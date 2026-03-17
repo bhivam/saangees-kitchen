@@ -1,4 +1,5 @@
 import { createTRPCRouter, publicProcedure } from "../index.js";
+import { combosRouter } from "./combo.js";
 import { deliveryRouter } from "./delivery.js";
 import { menuRouter } from "./menu.js";
 import { menuItemsRouter } from "./menuItem.js";
@@ -8,6 +9,7 @@ import { usersRouter } from "./users.js";
 
 export const appRouter = createTRPCRouter({
   alive: publicProcedure.query(() => "I'm alive!"),
+  combos: combosRouter,
   delivery: deliveryRouter,
   menuItems: menuItemsRouter,
   menu: menuRouter,

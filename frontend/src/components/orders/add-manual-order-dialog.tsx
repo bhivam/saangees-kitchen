@@ -20,8 +20,14 @@ import { formatCents, toLocalDateString } from "@/lib/utils";
 import { Checkbox } from "../ui/checkbox";
 import { Textarea } from "../ui/textarea";
 import { DateSelector } from "./date-selector";
-import { formatDate, type MenuEntry, type MenuItem } from "../customer-menu-view";
+import {
+  formatDate,
+  type MenuEntry,
+  type MenuItem,
+  type ComboEntry,
+} from "../customer-menu-view";
 import { useModifierSelection } from "@/hooks/use-modifier-selection";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 type Order = RouterOutputs["orders"]["getOrders"][number];
 
@@ -37,6 +43,22 @@ type OrderItem = {
   modifierNames: string[];
   unitPrice: number;
   specialInstructions?: string;
+};
+
+type ComboOrderItem = {
+  comboEntryId: string;
+  comboEntryDate: string;
+  comboName: string;
+  discountAmount: number;
+  totalPrice: number;
+  quantity: number;
+  items: Array<{
+    menuEntryId: string;
+    menuItemName: string;
+    modifierOptionIds: string[];
+    modifierNames: string[];
+    specialInstructions?: string;
+  }>;
 };
 
 function ModifierSelectionDialog({
@@ -131,7 +153,10 @@ function ModifierSelectionDialog({
                               checked={isSelected}
                               disabled={isDisabled}
                               onCheckedChange={() => {
-                                toggleModifierOption(modifierGroup.id, option.id);
+                                toggleModifierOption(
+                                  modifierGroup.id,
+                                  option.id,
+                                );
                               }}
                             />
                             <span className="flex-1">{option.name}</span>
@@ -146,7 +171,9 @@ function ModifierSelectionDialog({
                       })}
                     </div>
                     {modifierErrors[modifierGroup.id] && (
-                      <p className="text-sm text-red-500 mt-1">{modifierErrors[modifierGroup.id]}</p>
+                      <p className="text-sm text-red-500 mt-1">
+                        {modifierErrors[modifierGroup.id]}
+                      </p>
                     )}
                   </div>
                 ))}
@@ -199,6 +226,352 @@ function ModifierSelectionDialog({
             Cancel
           </Button>
           <Button onClick={handleAdd}>Add to Order</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type DialogComboEntry = Omit<ComboEntry, "orderingOpen">;
+
+function ComboConfigDialog({
+  comboEntry,
+  menuEntries,
+  onClose,
+  onAddToOrder,
+}: {
+  comboEntry: DialogComboEntry;
+  menuEntries: DialogMenuEntry[];
+  onClose: () => void;
+  onAddToOrder: (item: ComboOrderItem) => void;
+}) {
+  const combo = comboEntry.combo;
+  const sortedItems = [...combo.comboItems].sort(
+    (a, b) => a.sortOrder - b.sortOrder,
+  );
+
+  const [expandedIndex, setExpandedIndex] = useState(0);
+  const [quantity, setQuantity] = useState(1);
+  const [itemConfigs, setItemConfigs] = useState<
+    Array<{
+      modifierSelections: Record<string, string[]>;
+      specialInstructions: string;
+    }>
+  >(
+    sortedItems.map((ci) => ({
+      modifierSelections: Object.fromEntries(
+        ci.menuItem.modifierGroups.map((mg) => [mg.modifierGroup.id, []]),
+      ),
+      specialInstructions: "",
+    })),
+  );
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const calculateTotalPrice = () => {
+    let total = 0;
+    for (let i = 0; i < sortedItems.length; i++) {
+      const ci = sortedItems[i];
+      let itemPrice = ci.menuItem.basePrice;
+      const config = itemConfigs[i];
+      for (const [groupId, optionIds] of Object.entries(
+        config.modifierSelections,
+      )) {
+        const group = ci.menuItem.modifierGroups.find(
+          (mg) => mg.modifierGroup.id === groupId,
+        )?.modifierGroup;
+        if (!group) continue;
+        for (const optId of optionIds) {
+          const opt = group.options.find((o) => o.id === optId);
+          if (opt) itemPrice += opt.priceDelta;
+        }
+      }
+      total += itemPrice;
+    }
+    total -= combo.discountAmount;
+    return total;
+  };
+
+  const handleAdd = () => {
+    const newErrors: Record<string, string> = {};
+    for (let i = 0; i < sortedItems.length; i++) {
+      const ci = sortedItems[i];
+      const config = itemConfigs[i];
+      for (const { modifierGroup } of ci.menuItem.modifierGroups) {
+        const selected = config.modifierSelections[modifierGroup.id] ?? [];
+        if (
+          modifierGroup.minSelect > 0 &&
+          selected.length < modifierGroup.minSelect
+        ) {
+          newErrors[`${i}-${modifierGroup.id}`] =
+            `Select at least ${modifierGroup.minSelect}`;
+        }
+      }
+    }
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      const firstErrorKey = Object.keys(newErrors)[0];
+      const itemIndex = parseInt(firstErrorKey.split("-")[0]);
+      setExpandedIndex(itemIndex);
+      return;
+    }
+
+    const comboItems = sortedItems.map((ci, i) => {
+      const config = itemConfigs[i];
+      const modifierOptionIds: string[] = [];
+      const modifierNames: string[] = [];
+      for (const [groupId, optionIds] of Object.entries(
+        config.modifierSelections,
+      )) {
+        const group = ci.menuItem.modifierGroups.find(
+          (mg) => mg.modifierGroup.id === groupId,
+        )?.modifierGroup;
+        if (!group) continue;
+        for (const optId of optionIds) {
+          const opt = group.options.find((o) => o.id === optId);
+          if (opt) {
+            modifierOptionIds.push(optId);
+            modifierNames.push(opt.name);
+          }
+        }
+      }
+      // Find the menu entry for this item on this date
+      const menuEntry = menuEntries.find(
+        (me) =>
+          me.menuItem.id === ci.menuItem.id && me.date === comboEntry.date,
+      );
+      return {
+        menuEntryId: menuEntry?.id ?? "",
+        menuItemName: ci.menuItem.name,
+        modifierOptionIds,
+        modifierNames,
+        specialInstructions: config.specialInstructions.trim() || undefined,
+      };
+    });
+
+    onAddToOrder({
+      comboEntryId: comboEntry.id,
+      comboEntryDate: comboEntry.date,
+      comboName: combo.name,
+      discountAmount: combo.discountAmount,
+      totalPrice: calculateTotalPrice(),
+      quantity,
+      items: comboItems,
+    });
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        className="sm:max-w-125 max-h-[80vh] overflow-y-auto"
+        onPointerDownOutside={(e) => e.preventDefault()}
+      >
+        <DialogHeader>
+          <DialogTitle>{combo.name}</DialogTitle>
+          <DialogDescription>
+            {combo.description || `${sortedItems.length} items`}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-2">
+          {sortedItems.map((ci, itemIndex) => {
+            const isExpanded = expandedIndex === itemIndex;
+            const config = itemConfigs[itemIndex];
+            const modSummary = (() => {
+              const names: string[] = [];
+              for (const [groupId, optionIds] of Object.entries(
+                config.modifierSelections,
+              )) {
+                const group = ci.menuItem.modifierGroups.find(
+                  (mg) => mg.modifierGroup.id === groupId,
+                )?.modifierGroup;
+                if (!group) continue;
+                for (const optId of optionIds) {
+                  const opt = group.options.find((o) => o.id === optId);
+                  if (opt) names.push(opt.name);
+                }
+              }
+              return names.length > 0
+                ? names.join(", ")
+                : "No options selected";
+            })();
+
+            return (
+              <div
+                key={ci.menuItemId}
+                className="border rounded-lg overflow-hidden"
+              >
+                <button
+                  className="w-full flex items-center justify-between p-3 bg-muted/30 hover:bg-muted/50 transition-colors"
+                  onClick={() => setExpandedIndex(isExpanded ? -1 : itemIndex)}
+                >
+                  <div className="text-left">
+                    <p className="font-semibold">{ci.menuItem.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {modSummary}
+                    </p>
+                  </div>
+                  {isExpanded ? (
+                    <ChevronUp className="h-5 w-5 shrink-0" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5 shrink-0" />
+                  )}
+                </button>
+
+                {isExpanded && (
+                  <div className="p-3 space-y-4">
+                    {ci.menuItem.modifierGroups
+                      .sort((a, b) => a.sortOrder - b.sortOrder)
+                      .map(({ modifierGroup }) => {
+                        const errorKey = `${itemIndex}-${modifierGroup.id}`;
+                        const selectedIds =
+                          config.modifierSelections[modifierGroup.id] ?? [];
+
+                        return (
+                          <div key={modifierGroup.id} className="space-y-2">
+                            <div>
+                              <h4 className="font-medium">
+                                {modifierGroup.name}
+                              </h4>
+                              <p className="text-sm text-muted-foreground">
+                                {modifierGroup.minSelect === 0
+                                  ? "Optional"
+                                  : `Select at least ${modifierGroup.minSelect}`}
+                                {" · "}
+                                {`Select up to ${modifierGroup.maxSelect}`}
+                              </p>
+                            </div>
+                            <div className="space-y-1">
+                              {modifierGroup.options.map((option) => {
+                                const isSelected = selectedIds.includes(
+                                  option.id,
+                                );
+                                const disabled =
+                                  !isSelected &&
+                                  modifierGroup.maxSelect ===
+                                    selectedIds.length;
+                                return (
+                                  <label
+                                    key={option.id}
+                                    className="flex items-center gap-3 p-2 rounded hover:bg-muted cursor-pointer"
+                                  >
+                                    <Checkbox
+                                      checked={isSelected}
+                                      disabled={disabled}
+                                      onCheckedChange={(checked) => {
+                                        if (checked === "indeterminate") return;
+                                        const updated = [...itemConfigs];
+                                        const newSelections = {
+                                          ...updated[itemIndex]
+                                            .modifierSelections,
+                                        };
+                                        if (checked) {
+                                          newSelections[modifierGroup.id] = [
+                                            ...selectedIds,
+                                            option.id,
+                                          ];
+                                        } else {
+                                          newSelections[modifierGroup.id] =
+                                            selectedIds.filter(
+                                              (id) => id !== option.id,
+                                            );
+                                        }
+                                        updated[itemIndex] = {
+                                          ...updated[itemIndex],
+                                          modifierSelections: newSelections,
+                                        };
+                                        setItemConfigs(updated);
+                                        setErrors((prev) => {
+                                          const next = { ...prev };
+                                          delete next[errorKey];
+                                          return next;
+                                        });
+                                      }}
+                                    />
+                                    <span className="flex-1">
+                                      {option.name}
+                                    </span>
+                                    {option.priceDelta !== 0 && (
+                                      <span className="text-muted-foreground">
+                                        {option.priceDelta > 0 ? "+" : ""}
+                                        {formatCents(option.priceDelta)}
+                                      </span>
+                                    )}
+                                  </label>
+                                );
+                              })}
+                            </div>
+                            {errors[errorKey] && (
+                              <p className="text-sm text-red-500 mt-1">
+                                {errors[errorKey]}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                    <div>
+                      <Label>Special Instructions</Label>
+                      <Textarea
+                        placeholder="Any special requests?"
+                        value={config.specialInstructions}
+                        onChange={(e) => {
+                          const updated = [...itemConfigs];
+                          updated[itemIndex] = {
+                            ...updated[itemIndex],
+                            specialInstructions: e.target.value,
+                          };
+                          setItemConfigs(updated);
+                        }}
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          <div className="flex items-center justify-between px-1 py-2 border-t mt-2">
+            <span className="text-sm text-muted-foreground">
+              Combo discount
+            </span>
+            <span className="text-sm font-medium text-green-700">
+              -{formatCents(combo.discountAmount)}
+            </span>
+          </div>
+
+          <div className="flex justify-between font-medium pt-2 border-t">
+            <span>Combo Total</span>
+            <span>{formatCents(calculateTotalPrice() * quantity)}</span>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <div className="flex items-center gap-4">
+            <Label>Qty</Label>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                disabled={quantity <= 1}
+              >
+                -
+              </Button>
+              <span className="w-8 text-center">{quantity}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setQuantity(quantity + 1)}
+              >
+                +
+              </Button>
+            </div>
+          </div>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={handleAdd}>Add Combo</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -298,18 +671,27 @@ function AddManualOrderDialogContent({
     dataAndMode.mode === "create" ? "user" : "items",
   );
   const [browseDateStr, setBrowseDateStr] = useState<string>(
-    toLocalDateString(new Date())
+    toLocalDateString(new Date()),
   );
   const [itemSearch, setItemSearch] = useState("");
+  const [comboItems, setComboItems] = useState<ComboOrderItem[]>([]);
   const [modifierDialogEntry, setModifierDialogEntry] =
     useState<DialogMenuEntry | null>(null);
+  const [comboDialogEntry, setComboDialogEntry] =
+    useState<DialogComboEntry | null>(null);
   const [showCreateUser, setShowCreateUser] = useState(false);
   const [newPhone, setNewPhone] = useState("");
   const [newFirstName, setNewFirstName] = useState("");
   const [newLastName, setNewLastName] = useState("");
-  const [deliveryByDate, setDeliveryByDate] = useState<Record<string, boolean>>({});
-  const [addressByDate, setAddressByDate] = useState<Record<string, string | null>>({});
-  const [showAddressFormForDate, setShowAddressFormForDate] = useState<string | null>(null);
+  const [deliveryByDate, setDeliveryByDate] = useState<Record<string, boolean>>(
+    {},
+  );
+  const [addressByDate, setAddressByDate] = useState<
+    Record<string, string | null>
+  >({});
+  const [showAddressFormForDate, setShowAddressFormForDate] = useState<
+    string | null
+  >(null);
   const [newAddrLine1, setNewAddrLine1] = useState("");
   const [newAddrLine2, setNewAddrLine2] = useState("");
   const [newAddrCity, setNewAddrCity] = useState("");
@@ -328,6 +710,9 @@ function AddManualOrderDialogContent({
     }),
   );
 
+  const comboEntriesQuery = useQuery(
+    trpc.combos.getComboEntriesByDate.queryOptions({ date: browseDateStr }),
+  );
 
   const menuItemsQuery = useQuery(trpc.menuItems.getMenuItems.queryOptions());
 
@@ -365,12 +750,13 @@ function AddManualOrderDialogContent({
     trpc.menu.createCustomMenuEntry.mutationOptions(),
   );
 
-  const DELIVERY_FEE_CENTS = 500;
+  const DELIVERY_FEE_CENTS = 400;
 
   const uniqueDates = useMemo(() => {
     const dateSet = new Set(items.map((i) => i.menuEntryDate));
+    for (const c of comboItems) dateSet.add(c.comboEntryDate);
     return [...dateSet].sort();
-  }, [items]);
+  }, [items, comboItems]);
 
   const addressesQuery = useQuery(
     trpc.delivery.adminGetUserAddresses.queryOptions(
@@ -459,11 +845,18 @@ function AddManualOrderDialogContent({
   const deliveryTotal = newDeliveryDates.length * DELIVERY_FEE_CENTS;
 
   const total = useMemo(() => {
-    return items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
-  }, [items]);
+    const itemsTotal = items.reduce(
+      (sum, item) => sum + item.unitPrice * item.quantity,
+      0,
+    );
+    const combosTotal = comboItems.reduce(
+      (sum, c) => sum + c.totalPrice * c.quantity,
+      0,
+    );
+    return itemsTotal + combosTotal;
+  }, [items, comboItems]);
 
   const grandTotal = total + deliveryTotal;
-
 
   const menuEntriesForSelectedDay = useMemo(() => {
     if (!menuEntriesQuery.data) return [];
@@ -479,9 +872,7 @@ function AddManualOrderDialogContent({
   }, [menuItemsQuery.data, itemSearch]);
 
   const hasRequiredModifiers = (menuItem: MenuItem) => {
-    return menuItem.modifierGroups.some(
-      (mg) => mg.modifierGroup.minSelect > 0,
-    );
+    return menuItem.modifierGroups.some((mg) => mg.modifierGroup.minSelect > 0);
   };
 
   const quickAddItem = (entry: DialogMenuEntry) => {
@@ -564,10 +955,20 @@ function AddManualOrderDialogContent({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
-    if (!selectedUserId || items.length === 0) return;
+    if (!selectedUserId || (items.length === 0 && comboItems.length === 0))
+      return;
     setIsSubmitting(true);
 
     try {
+      const comboOrderData = comboItems.map((c) => ({
+        comboEntryId: c.comboEntryId,
+        items: c.items.map((item) => ({
+          menuEntryId: item.menuEntryId,
+          modifierOptionIds: item.modifierOptionIds,
+          specialInstructions: item.specialInstructions,
+        })),
+      }));
+
       if (dataAndMode.mode === "edit" && dataAndMode.data) {
         const updateItems = items.map((item) => ({
           orderItemId: item.orderItemId,
@@ -590,6 +991,7 @@ function AddManualOrderDialogContent({
         await createOrderMutation.mutateAsync({
           userId: selectedUserId,
           items: createItems,
+          combos: comboOrderData.length > 0 ? comboOrderData : undefined,
         });
       }
 
@@ -597,7 +999,8 @@ function AddManualOrderDialogContent({
       const checkedDates = uniqueDates.filter((d) => deliveryByDate[d]);
       const datesToUpdate = checkedDates.filter((d) => {
         const isNew = !alreadyScheduledDates.has(d);
-        const addressChanged = initialAddressByDate.current[d] !== undefined &&
+        const addressChanged =
+          initialAddressByDate.current[d] !== undefined &&
           addressByDate[d] !== initialAddressByDate.current[d];
         return isNew || addressChanged;
       });
@@ -640,7 +1043,6 @@ function AddManualOrderDialogContent({
       setIsSubmitting(false);
     }
   };
-
 
   if (step === "user") {
     const phoneDigits = newPhone.replace(/\D/g, "").slice(0, 10);
@@ -795,9 +1197,7 @@ function AddManualOrderDialogContent({
     <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col p-0 gap-0">
       <DialogHeader className="px-6 pt-6 pb-4">
         <DialogTitle>
-          {dataAndMode.mode === "edit"
-            ? "Edit Order"
-            : "Create Manual Order"}
+          {dataAndMode.mode === "edit" ? "Edit Order" : "Create Manual Order"}
         </DialogTitle>
         <DialogDescription>
           {selectedUser
@@ -895,6 +1295,55 @@ function AddManualOrderDialogContent({
                 </div>
               </div>
 
+              {/* Combo entries for selected day */}
+              {comboEntriesQuery.data && comboEntriesQuery.data.length > 0 && (
+                <div className="border rounded-md">
+                  <div className="p-3 bg-purple-50 font-medium border-b text-sm">
+                    Combos &middot; {formatDate(browseDateStr)}
+                  </div>
+                  <div className="max-h-60 overflow-y-auto">
+                    {comboEntriesQuery.data.map((entry) => {
+                      const basePrice = entry.combo.comboItems.reduce(
+                        (sum, ci) => sum + ci.menuItem.basePrice,
+                        0,
+                      );
+                      const comboPrice = basePrice - entry.combo.discountAmount;
+                      return (
+                        <div
+                          key={entry.id}
+                          className="flex items-center justify-between p-3 border-b last:border-b-0"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm truncate">
+                              {entry.combo.name}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {formatCents(comboPrice)}
+                              <span className="text-xs ml-1">
+                                (
+                                {entry.combo.comboItems
+                                  .map((ci) => ci.menuItem.name)
+                                  .join(", ")}
+                                )
+                              </span>
+                            </div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="ml-2 shrink-0"
+                            onClick={() => setComboDialogEntry(entry)}
+                          >
+                            <Plus className="h-3.5 w-3.5 mr-1" />
+                            Add
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Search all items */}
               <div className="space-y-2">
                 <div className="relative">
@@ -963,238 +1412,337 @@ function AddManualOrderDialogContent({
                 This order has payments and cannot be modified.
               </div>
             )}
-            {items.length === 0 ? (
+            {items.length === 0 && comboItems.length === 0 ? (
               <div className="p-4 border rounded-md text-center text-muted-foreground">
                 No items added yet
               </div>
             ) : (
               <div className="border rounded-md divide-y">
                 {items.map((item, index) => (
-                    <div
-                      key={index}
-                      className="p-3 flex justify-between items-start"
-                    >
-                      <div className="flex-1">
-                        <div className="font-medium">{item.menuItemName}</div>
-                        {item.modifierNames.length > 0 && (
-                          <div className="text-sm text-muted-foreground">
-                            {item.modifierNames.join(", ")}
-                          </div>
-                        )}
-                        {item.specialInstructions && (
-                          <div className="text-sm text-muted-foreground italic">
-                            Note: {item.specialInstructions}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-medium">
-                          {formatCents(item.unitPrice * item.quantity)}
+                  <div
+                    key={index}
+                    className="p-3 flex justify-between items-start"
+                  >
+                    <div className="flex-1">
+                      <div className="font-medium">{item.menuItemName}</div>
+                      {item.modifierNames.length > 0 && (
+                        <div className="text-sm text-muted-foreground">
+                          {item.modifierNames.join(", ")}
+                        </div>
+                      )}
+                      {item.specialInstructions && (
+                        <div className="text-sm text-muted-foreground italic">
+                          Note: {item.specialInstructions}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-medium">
+                        {formatCents(item.unitPrice * item.quantity)}
+                      </span>
+                      {isLocked ? (
+                        <span className="text-muted-foreground">
+                          ×{item.quantity}
                         </span>
-                        {isLocked ? (
-                          <span className="text-muted-foreground">
-                            ×{item.quantity}
-                          </span>
-                        ) : (
-                          <QuantityStepper
-                            value={item.quantity}
-                            onReduce={() => {
-                              if (item.quantity <= 1) {
-                                removeItem(index);
-                              } else {
-                                updateItemQuantity(index, item.quantity - 1);
-                              }
-                            }}
-                            onIncrease={() =>
-                              updateItemQuantity(index, item.quantity + 1)
+                      ) : (
+                        <QuantityStepper
+                          value={item.quantity}
+                          onReduce={() => {
+                            if (item.quantity <= 1) {
+                              removeItem(index);
+                            } else {
+                              updateItemQuantity(index, item.quantity - 1);
                             }
-                            reduceIcon={
-                              item.quantity <= 1 ? (
-                                <Trash2 className="size-4" />
-                              ) : undefined
-                            }
-                            reduceDisabled={false}
-                            increaseDisabled={false}
-                          />
-                        )}
+                          }}
+                          onIncrease={() =>
+                            updateItemQuantity(index, item.quantity + 1)
+                          }
+                          reduceIcon={
+                            item.quantity <= 1 ? (
+                              <Trash2 className="size-4" />
+                            ) : undefined
+                          }
+                          reduceDisabled={false}
+                          increaseDisabled={false}
+                        />
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                {comboItems.map((combo, index) => (
+                  <div
+                    key={`combo-${index}`}
+                    className="p-3 flex justify-between items-start"
+                  >
+                    <div className="flex-1">
+                      <div className="font-medium">{combo.comboName}</div>
+                      <div className="pl-2">
+                        {combo.items.map((item, i) => (
+                          <div
+                            key={i}
+                            className="text-sm text-muted-foreground"
+                          >
+                            {item.menuItemName}
+                            {item.modifierNames.length > 0 && (
+                              <span> ({item.modifierNames.join(", ")})</span>
+                            )}
+                            {item.specialInstructions && (
+                              <span className="italic">
+                                {" "}
+                                — {item.specialInstructions}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="text-sm text-green-700">
+                        Discount: -{formatCents(combo.discountAmount)}
                       </div>
                     </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-medium">
+                        {formatCents(combo.totalPrice * combo.quantity)}
+                      </span>
+                      {!isLocked && (
+                        <QuantityStepper
+                          value={combo.quantity}
+                          onReduce={() => {
+                            if (combo.quantity <= 1) {
+                              setComboItems((prev) =>
+                                prev.filter((_, i) => i !== index),
+                              );
+                            } else {
+                              setComboItems((prev) =>
+                                prev.map((c, i) =>
+                                  i === index
+                                    ? { ...c, quantity: c.quantity - 1 }
+                                    : c,
+                                ),
+                              );
+                            }
+                          }}
+                          onIncrease={() =>
+                            setComboItems((prev) =>
+                              prev.map((c, i) =>
+                                i === index
+                                  ? { ...c, quantity: c.quantity + 1 }
+                                  : c,
+                              ),
+                            )
+                          }
+                          reduceIcon={
+                            combo.quantity <= 1 ? (
+                              <Trash2 className="size-4" />
+                            ) : undefined
+                          }
+                          reduceDisabled={false}
+                          increaseDisabled={false}
+                        />
+                      )}
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
 
             {/* Delivery section */}
-            {items.length > 0 && selectedUserId && uniqueDates.length > 0 && (
-              <div className="mt-4 border rounded-md">
-                <div className="p-3 bg-muted font-medium border-b text-sm flex items-center gap-1.5">
-                  <Truck className="h-4 w-4" />
-                  Delivery
-                </div>
-                <div className="divide-y">
-                  {uniqueDates.map((date) => {
-                    const isAlreadyScheduled = alreadyScheduledDates.has(date);
-                    const isChecked = !!deliveryByDate[date];
-                    const isDisabled = isAlreadyScheduled;
+            {(items.length > 0 || comboItems.length > 0) &&
+              selectedUserId &&
+              uniqueDates.length > 0 && (
+                <div className="mt-4 border rounded-md">
+                  <div className="p-3 bg-muted font-medium border-b text-sm flex items-center gap-1.5">
+                    <Truck className="h-4 w-4" />
+                    Delivery
+                  </div>
+                  <div className="divide-y">
+                    {uniqueDates.map((date) => {
+                      const isAlreadyScheduled =
+                        alreadyScheduledDates.has(date);
+                      const isChecked = !!deliveryByDate[date];
+                      const isDisabled = isAlreadyScheduled;
 
-                    return (
-                      <div key={date}>
-                        <div className="px-3 py-2 flex items-center gap-2">
-                          <Checkbox
-                            id={`del-${date}`}
-                            checked={isChecked}
-                            disabled={isDisabled}
-                            onCheckedChange={(checked) => {
-                              const on = checked === true;
-                              setDeliveryByDate((prev) => ({
-                                ...prev,
-                                [date]: on,
-                              }));
-                              if (on && !addressByDate[date]) {
-                                const firstAddr = addressesQuery.data?.[0]?.addressId ?? null;
-                                setAddressByDate((prev) => ({
+                      return (
+                        <div key={date}>
+                          <div className="px-3 py-2 flex items-center gap-2">
+                            <Checkbox
+                              id={`del-${date}`}
+                              checked={isChecked}
+                              disabled={isDisabled}
+                              onCheckedChange={(checked) => {
+                                const on = checked === true;
+                                setDeliveryByDate((prev) => ({
                                   ...prev,
-                                  [date]: firstAddr,
+                                  [date]: on,
                                 }));
-                              }
-                            }}
-                          />
-                          <label
-                            htmlFor={`del-${date}`}
-                            className="flex-1 text-sm flex items-center justify-between"
-                          >
-                            <span>{formatDate(date)}</span>
-                            <span className="text-muted-foreground text-xs">
-                              {isAlreadyScheduled && isChecked
-                                ? "Already scheduled"
-                                : isChecked
-                                  ? `Delivery +${formatCents(DELIVERY_FEE_CENTS)}`
-                                  : `Add delivery (${formatCents(DELIVERY_FEE_CENTS)})`}
-                            </span>
-                          </label>
-                        </div>
-
-                        {/* Per-date address picker */}
-                        {isChecked && (
-                          <div className="px-3 pb-2 pl-9 space-y-2">
-                            {showAddressFormForDate === date ? (
-                              <div className="space-y-2">
-                                <Label className="text-xs">New Address</Label>
-                                <Input
-                                  placeholder="Address line 1"
-                                  value={newAddrLine1}
-                                  onChange={(e) => setNewAddrLine1(e.target.value)}
-                                  className="h-8 text-sm"
-                                />
-                                <Input
-                                  placeholder="Address line 2 (optional)"
-                                  value={newAddrLine2}
-                                  onChange={(e) => setNewAddrLine2(e.target.value)}
-                                  className="h-8 text-sm"
-                                />
-                                <div className="grid grid-cols-3 gap-2">
-                                  <Input
-                                    placeholder="City"
-                                    value={newAddrCity}
-                                    onChange={(e) => setNewAddrCity(e.target.value)}
-                                    className="h-8 text-sm"
-                                  />
-                                  <Input
-                                    placeholder="State"
-                                    value={newAddrState}
-                                    onChange={(e) => setNewAddrState(e.target.value)}
-                                    className="h-8 text-sm"
-                                  />
-                                  <Input
-                                    placeholder="ZIP"
-                                    value={newAddrZip}
-                                    onChange={(e) => setNewAddrZip(e.target.value)}
-                                    className="h-8 text-sm"
-                                  />
-                                </div>
-                                <div className="flex gap-2">
-                                  <Button
-                                    size="sm"
-                                    className="h-7 text-xs"
-                                    disabled={
-                                      !newAddrLine1.trim() ||
-                                      !newAddrCity.trim() ||
-                                      !newAddrState.trim() ||
-                                      !newAddrZip.trim() ||
-                                      adminSaveAddressMutation.isPending
-                                    }
-                                    onClick={() =>
-                                      adminSaveAddressMutation.mutate({
-                                        userId: selectedUserId!,
-                                        addressLine1: newAddrLine1.trim(),
-                                        addressLine2: newAddrLine2.trim() || undefined,
-                                        city: newAddrCity.trim(),
-                                        state: newAddrState.trim(),
-                                        postalCode: newAddrZip.trim(),
-                                      })
-                                    }
-                                  >
-                                    {adminSaveAddressMutation.isPending
-                                      ? "Saving..."
-                                      : "Save"}
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-7 text-xs"
-                                    onClick={() => setShowAddressFormForDate(null)}
-                                  >
-                                    Cancel
-                                  </Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2 min-w-0">
-                                {addressesQuery.data && addressesQuery.data.length > 0 ? (
-                                  <select
-                                    className="flex-1 min-w-0 h-8 rounded-md border border-input bg-background px-2 text-sm truncate"
-                                    value={addressByDate[date] ?? ""}
-                                    onChange={(e) =>
-                                      setAddressByDate((prev) => ({
-                                        ...prev,
-                                        [date]: e.target.value || null,
-                                      }))
-                                    }
-                                  >
-                                    <option value="">Select address...</option>
-                                    {addressesQuery.data.map((addr) => (
-                                      <option key={addr.addressId} value={addr.addressId}>
-                                        {addr.addressLine1}, {addr.city}, {addr.state}{" "}
-                                        {addr.postalCode}
-                                      </option>
-                                    ))}
-                                  </select>
-                                ) : (
-                                  <span className="flex-1 text-xs text-muted-foreground">
-                                    No saved addresses
-                                  </span>
-                                )}
-                                <Button
-                                  variant="link"
-                                  size="sm"
-                                  className="h-auto p-0 text-xs shrink-0"
-                                  onClick={() => setShowAddressFormForDate(date)}
-                                >
-                                  + New
-                                </Button>
-                              </div>
-                            )}
+                                if (on && !addressByDate[date]) {
+                                  const firstAddr =
+                                    addressesQuery.data?.[0]?.addressId ?? null;
+                                  setAddressByDate((prev) => ({
+                                    ...prev,
+                                    [date]: firstAddr,
+                                  }));
+                                }
+                              }}
+                            />
+                            <label
+                              htmlFor={`del-${date}`}
+                              className="flex-1 text-sm flex items-center justify-between"
+                            >
+                              <span>{formatDate(date)}</span>
+                              <span className="text-muted-foreground text-xs">
+                                {isAlreadyScheduled && isChecked
+                                  ? "Already scheduled"
+                                  : isChecked
+                                    ? `Delivery +${formatCents(DELIVERY_FEE_CENTS)}`
+                                    : `Add delivery (${formatCents(DELIVERY_FEE_CENTS)})`}
+                              </span>
+                            </label>
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
+
+                          {/* Per-date address picker */}
+                          {isChecked && (
+                            <div className="px-3 pb-2 pl-9 space-y-2">
+                              {showAddressFormForDate === date ? (
+                                <div className="space-y-2">
+                                  <Label className="text-xs">New Address</Label>
+                                  <Input
+                                    placeholder="Address line 1"
+                                    value={newAddrLine1}
+                                    onChange={(e) =>
+                                      setNewAddrLine1(e.target.value)
+                                    }
+                                    className="h-8 text-sm"
+                                  />
+                                  <Input
+                                    placeholder="Address line 2 (optional)"
+                                    value={newAddrLine2}
+                                    onChange={(e) =>
+                                      setNewAddrLine2(e.target.value)
+                                    }
+                                    className="h-8 text-sm"
+                                  />
+                                  <div className="grid grid-cols-3 gap-2">
+                                    <Input
+                                      placeholder="City"
+                                      value={newAddrCity}
+                                      onChange={(e) =>
+                                        setNewAddrCity(e.target.value)
+                                      }
+                                      className="h-8 text-sm"
+                                    />
+                                    <Input
+                                      placeholder="State"
+                                      value={newAddrState}
+                                      onChange={(e) =>
+                                        setNewAddrState(e.target.value)
+                                      }
+                                      className="h-8 text-sm"
+                                    />
+                                    <Input
+                                      placeholder="ZIP"
+                                      value={newAddrZip}
+                                      onChange={(e) =>
+                                        setNewAddrZip(e.target.value)
+                                      }
+                                      className="h-8 text-sm"
+                                    />
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Button
+                                      size="sm"
+                                      className="h-7 text-xs"
+                                      disabled={
+                                        !newAddrLine1.trim() ||
+                                        !newAddrCity.trim() ||
+                                        !newAddrState.trim() ||
+                                        !newAddrZip.trim() ||
+                                        adminSaveAddressMutation.isPending
+                                      }
+                                      onClick={() =>
+                                        adminSaveAddressMutation.mutate({
+                                          userId: selectedUserId!,
+                                          addressLine1: newAddrLine1.trim(),
+                                          addressLine2:
+                                            newAddrLine2.trim() || undefined,
+                                          city: newAddrCity.trim(),
+                                          state: newAddrState.trim(),
+                                          postalCode: newAddrZip.trim(),
+                                        })
+                                      }
+                                    >
+                                      {adminSaveAddressMutation.isPending
+                                        ? "Saving..."
+                                        : "Save"}
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 text-xs"
+                                      onClick={() =>
+                                        setShowAddressFormForDate(null)
+                                      }
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2 min-w-0">
+                                  {addressesQuery.data &&
+                                  addressesQuery.data.length > 0 ? (
+                                    <select
+                                      className="flex-1 min-w-0 h-8 rounded-md border border-input bg-background px-2 text-sm truncate"
+                                      value={addressByDate[date] ?? ""}
+                                      onChange={(e) =>
+                                        setAddressByDate((prev) => ({
+                                          ...prev,
+                                          [date]: e.target.value || null,
+                                        }))
+                                      }
+                                    >
+                                      <option value="">
+                                        Select address...
+                                      </option>
+                                      {addressesQuery.data.map((addr) => (
+                                        <option
+                                          key={addr.addressId}
+                                          value={addr.addressId}
+                                        >
+                                          {addr.addressLine1}, {addr.city},{" "}
+                                          {addr.state} {addr.postalCode}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  ) : (
+                                    <span className="flex-1 text-xs text-muted-foreground">
+                                      No saved addresses
+                                    </span>
+                                  )}
+                                  <Button
+                                    variant="link"
+                                    size="sm"
+                                    className="h-auto p-0 text-xs shrink-0"
+                                    onClick={() =>
+                                      setShowAddressFormForDate(date)
+                                    }
+                                  >
+                                    + New
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
           </div>
 
           {/* Total */}
-          {items.length > 0 && (
+          {(items.length > 0 || comboItems.length > 0) && (
             <div className="px-6 py-3 border-t">
               {deliveryTotal > 0 ? (
                 <div className="space-y-1">
@@ -1204,7 +1752,8 @@ function AddManualOrderDialogContent({
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>
-                      Delivery ({newDeliveryDates.length} &times; {formatCents(DELIVERY_FEE_CENTS)})
+                      Delivery ({newDeliveryDates.length} &times;{" "}
+                      {formatCents(DELIVERY_FEE_CENTS)})
                     </span>
                     <span>{formatCents(deliveryTotal)}</span>
                   </div>
@@ -1234,7 +1783,7 @@ function AddManualOrderDialogContent({
             disabled={
               isLocked ||
               !selectedUserId ||
-              items.length === 0 ||
+              (items.length === 0 && comboItems.length === 0) ||
               isSubmitting ||
               uniqueDates.some((d) => deliveryByDate[d] && !addressByDate[d])
             }
@@ -1262,6 +1811,20 @@ function AddManualOrderDialogContent({
           }}
         />
       )}
+
+      {/* Combo config sub-dialog */}
+      {comboDialogEntry && (
+        <ComboConfigDialog
+          comboEntry={comboDialogEntry}
+          menuEntries={menuEntriesQuery.data ?? []}
+          onClose={() => setComboDialogEntry(null)}
+          onAddToOrder={(combo) => {
+            setComboItems((prev) => [...prev, combo]);
+            setComboDialogEntry(null);
+          }}
+        />
+      )}
     </DialogContent>
   );
 }
+

@@ -26,6 +26,7 @@ import { Route as DashboardMenuRouteImport } from './routes/dashboard/menu'
 import { Route as DashboardItemsRouteImport } from './routes/dashboard/items'
 import { Route as DashboardHomeRouteImport } from './routes/dashboard/home'
 import { Route as DashboardCookingRouteImport } from './routes/dashboard/cooking'
+import { Route as DashboardCombosRouteImport } from './routes/dashboard/combos'
 import { Route as DashboardBaggingRouteImport } from './routes/dashboard/bagging'
 
 const SmsTermsRoute = SmsTermsRouteImport.update({
@@ -113,6 +114,11 @@ const DashboardCookingRoute = DashboardCookingRouteImport.update({
   path: '/cooking',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
+const DashboardCombosRoute = DashboardCombosRouteImport.update({
+  id: '/combos',
+  path: '/combos',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
 const DashboardBaggingRoute = DashboardBaggingRouteImport.update({
   id: '/bagging',
   path: '/bagging',
@@ -130,6 +136,7 @@ export interface FileRoutesByFullPath {
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/sms-terms': typeof SmsTermsRoute
   '/dashboard/bagging': typeof DashboardBaggingRoute
+  '/dashboard/combos': typeof DashboardCombosRoute
   '/dashboard/cooking': typeof DashboardCookingRoute
   '/dashboard/home': typeof DashboardHomeRoute
   '/dashboard/items': typeof DashboardItemsRoute
@@ -149,6 +156,7 @@ export interface FileRoutesByTo {
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/sms-terms': typeof SmsTermsRoute
   '/dashboard/bagging': typeof DashboardBaggingRoute
+  '/dashboard/combos': typeof DashboardCombosRoute
   '/dashboard/cooking': typeof DashboardCookingRoute
   '/dashboard/home': typeof DashboardHomeRoute
   '/dashboard/items': typeof DashboardItemsRoute
@@ -170,6 +178,7 @@ export interface FileRoutesById {
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/sms-terms': typeof SmsTermsRoute
   '/dashboard/bagging': typeof DashboardBaggingRoute
+  '/dashboard/combos': typeof DashboardCombosRoute
   '/dashboard/cooking': typeof DashboardCookingRoute
   '/dashboard/home': typeof DashboardHomeRoute
   '/dashboard/items': typeof DashboardItemsRoute
@@ -192,6 +201,7 @@ export interface FileRouteTypes {
     | '/privacy-policy'
     | '/sms-terms'
     | '/dashboard/bagging'
+    | '/dashboard/combos'
     | '/dashboard/cooking'
     | '/dashboard/home'
     | '/dashboard/items'
@@ -211,6 +221,7 @@ export interface FileRouteTypes {
     | '/privacy-policy'
     | '/sms-terms'
     | '/dashboard/bagging'
+    | '/dashboard/combos'
     | '/dashboard/cooking'
     | '/dashboard/home'
     | '/dashboard/items'
@@ -231,6 +242,7 @@ export interface FileRouteTypes {
     | '/privacy-policy'
     | '/sms-terms'
     | '/dashboard/bagging'
+    | '/dashboard/combos'
     | '/dashboard/cooking'
     | '/dashboard/home'
     | '/dashboard/items'
@@ -374,6 +386,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardCookingRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
+    '/dashboard/combos': {
+      id: '/dashboard/combos'
+      path: '/combos'
+      fullPath: '/dashboard/combos'
+      preLoaderRoute: typeof DashboardCombosRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
     '/dashboard/bagging': {
       id: '/dashboard/bagging'
       path: '/bagging'
@@ -386,6 +405,7 @@ declare module '@tanstack/react-router' {
 
 interface DashboardRouteRouteChildren {
   DashboardBaggingRoute: typeof DashboardBaggingRoute
+  DashboardCombosRoute: typeof DashboardCombosRoute
   DashboardCookingRoute: typeof DashboardCookingRoute
   DashboardHomeRoute: typeof DashboardHomeRoute
   DashboardItemsRoute: typeof DashboardItemsRoute
@@ -398,6 +418,7 @@ interface DashboardRouteRouteChildren {
 
 const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardBaggingRoute: DashboardBaggingRoute,
+  DashboardCombosRoute: DashboardCombosRoute,
   DashboardCookingRoute: DashboardCookingRoute,
   DashboardHomeRoute: DashboardHomeRoute,
   DashboardItemsRoute: DashboardItemsRoute,

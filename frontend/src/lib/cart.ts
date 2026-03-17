@@ -66,6 +66,28 @@ const skuidSchema = z
   .string()
   .regex(SKUID_REGEX, "Invalid cart item id format");
 
+export type ComboCartItem = {
+  quantity: number;
+  comboEntryId: string;
+  items: Array<{
+    menuItemId: string;
+    modifierSelections: Record<string, string[]>;
+    specialInstructions?: string;
+  }>;
+};
+
+const comboCartItemSchema = z.object({
+  quantity: z.number().nonnegative(),
+  comboEntryId: z.string(),
+  items: z.array(
+    z.object({
+      menuItemId: z.string(),
+      modifierSelections: z.record(z.string(), z.array(z.string())),
+      specialInstructions: z.string().optional(),
+    }),
+  ),
+});
+
 const cartSchema = z.object({
   items: z.record(
     skuidSchema,
@@ -76,6 +98,7 @@ const cartSchema = z.object({
       })
       .optional(),
   ),
+  combos: z.record(z.string(), comboCartItemSchema).optional(),
 });
 
 export type Cart = z.infer<typeof cartSchema>;
@@ -151,9 +174,14 @@ export function getCartLS(): Cart {
   let currentCart: Cart;
 
   try {
-    currentCart = cartString
-      ? cartSchema.parse(JSON.parse(cartString))
-      : { items: {} };
+    if (cartString) {
+      const parsed = JSON.parse(cartString);
+      // Backward compat: add combos key if missing
+      if (!parsed.combos) parsed.combos = {};
+      currentCart = cartSchema.parse(parsed);
+    } else {
+      currentCart = { items: {}, combos: {} };
+    }
   } catch (e) {
     throw new Error(`Failed to retrieve cart: ${e}`);
   }
@@ -203,6 +231,80 @@ export function replaceCartItemLS(
       quantity: existingQuantity + itemSelection.quantity,
       specialInstructions: instructions,
     };
+  }
+
+  localStorage.setItem(CART_KEY, JSON.stringify(currentCart));
+}
+
+// Combo cart functions
+
+export type ComboSelection = {
+  comboEntryId: string;
+  quantity: number;
+  items: Array<{
+    menuItemId: string;
+    modifierSelections: Record<string, string[]>;
+    specialInstructions?: string;
+  }>;
+};
+
+function getComboSkuId(selection: ComboSelection): string {
+  // Hash based on comboEntryId + all items' modifier selections + instructions
+  const itemParts = selection.items.map((item) => {
+    const modParts = Object.entries(item.modifierSelections)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([groupId, optionIds]) => {
+        const sorted = [...optionIds].sort();
+        return `${groupId}(${sorted.join(";")})`;
+      })
+      .join(",");
+    const instrHash = item.specialInstructions?.trim()
+      ? shortHash(item.specialInstructions.trim())
+      : "";
+    return `${item.menuItemId}|${modParts}${instrHash ? `~${instrHash}` : ""}`;
+  });
+  return `combo:${selection.comboEntryId}:${shortHash(itemParts.join(":"))}`;
+}
+
+export function addComboToCartLS(selection: ComboSelection) {
+  const currentCart = getCartLS();
+  if (!currentCart.combos) currentCart.combos = {};
+
+  const comboSkuId = getComboSkuId(selection);
+  const existing = currentCart.combos[comboSkuId];
+
+  if (existing) {
+    existing.quantity += selection.quantity;
+  } else {
+    currentCart.combos[comboSkuId] = {
+      quantity: selection.quantity,
+      comboEntryId: selection.comboEntryId,
+      items: selection.items,
+    };
+  }
+
+  localStorage.setItem(CART_KEY, JSON.stringify(currentCart));
+}
+
+export function removeComboFromCartLS(comboSkuId: string) {
+  const currentCart = getCartLS();
+  if (currentCart.combos) {
+    delete currentCart.combos[comboSkuId];
+  }
+  localStorage.setItem(CART_KEY, JSON.stringify(currentCart));
+}
+
+export function updateComboQuantityLS(comboSkuId: string, quantity: number) {
+  const currentCart = getCartLS();
+  if (!currentCart.combos) return;
+
+  if (quantity <= 0) {
+    delete currentCart.combos[comboSkuId];
+  } else {
+    const existing = currentCart.combos[comboSkuId];
+    if (existing) {
+      existing.quantity = quantity;
+    }
   }
 
   localStorage.setItem(CART_KEY, JSON.stringify(currentCart));

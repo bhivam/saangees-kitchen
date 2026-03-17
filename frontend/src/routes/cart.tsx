@@ -1,12 +1,13 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { authClient } from "@/lib/auth-client";
 import { useCart } from "@/hooks/use-cart";
-import { parseSkuId, type Cart } from "@/lib/cart";
+import { parseSkuId, type Cart, type ComboCartItem } from "@/lib/cart";
 import { useQuery } from "@tanstack/react-query";
 import { useTRPC } from "@/trpc";
 import {
   formatDate,
   type MenuEntry,
+  type ComboEntry,
 } from "@/components/customer-menu-view";
 import { formatCents } from "@/lib/utils";
 import { X, Trash2 } from "lucide-react";
@@ -36,14 +37,24 @@ type EditingItem = {
 };
 
 function Cart() {
-  const { cart, setCart, updateCartItemQuantity, removeCartItem } = useCart();
+  const {
+    cart,
+    setCart,
+    updateCartItemQuantity,
+    removeCartItem,
+    removeComboFromCart,
+    updateComboQuantity,
+  } = useCart();
   const [editingItem, setEditingItem] = useState<EditingItem | null>(null);
 
   const trpc = useTRPC();
 
-  const { data: menuEntries, isLoading } = useQuery(
+  const { data: weekMenu, isLoading } = useQuery(
     trpc.menu.getWeekMenu.queryOptions(),
   );
+
+  const menuEntries = weekMenu?.menuEntries;
+  const comboEntries = weekMenu?.comboEntries ?? [];
 
   function hydrateCartFromMenu(cart: Cart, menuEntries: MenuEntry[]) {
     const validSkuIds = new Set<string>();
@@ -181,18 +192,87 @@ function Cart() {
           .filter((skuId) => validSkuIds.has(skuId))
           .map((skuId) => [skuId, cart.items[skuId]]),
       ),
+      combos: cart.combos,
     };
     setCart(filteredCart);
   }
 
-  // Get unique sorted dates from hydrated items
-  const itemDates = [
-    ...new Set(
-      hydratedSelectedItems
-        .map((item) => item.date)
-        .filter((d): d is string => d !== null),
-    ),
-  ].sort();
+  // Hydrate combos
+  const hydratedCombos = Object.entries(cart.combos ?? {}).flatMap(
+    ([comboSkuId, comboData]) => {
+      if (!comboData) return [];
+      const entry = comboEntries.find((e) => e.id === comboData.comboEntryId);
+      if (!entry) return [];
+
+      let totalPrice = 0;
+      for (const item of comboData.items) {
+        const comboItem = entry.combo.comboItems.find(
+          (ci) => ci.menuItem.id === item.menuItemId,
+        );
+        if (!comboItem) return [];
+        let itemPrice = comboItem.menuItem.basePrice;
+        for (const [groupId, optionIds] of Object.entries(
+          item.modifierSelections,
+        )) {
+          const group = comboItem.menuItem.modifierGroups.find(
+            (mg) => mg.modifierGroup.id === groupId,
+          )?.modifierGroup;
+          if (!group) continue;
+          for (const optId of optionIds) {
+            const opt = group.options.find((o) => o.id === optId);
+            if (opt) itemPrice += opt.priceDelta;
+          }
+        }
+        totalPrice += itemPrice;
+      }
+      totalPrice -= entry.combo.discountAmount;
+
+      return [
+        {
+          comboSkuId,
+          comboEntryId: comboData.comboEntryId,
+          date: entry.date,
+          comboName: entry.combo.name,
+          discountAmount: entry.combo.discountAmount,
+          totalPrice,
+          quantity: comboData.quantity,
+          items: comboData.items.map((item) => {
+            const comboItem = entry.combo.comboItems.find(
+              (ci) => ci.menuItem.id === item.menuItemId,
+            )!;
+            const modifierNames: string[] = [];
+            for (const [groupId, optionIds] of Object.entries(
+              item.modifierSelections,
+            )) {
+              const group = comboItem.menuItem.modifierGroups.find(
+                (mg) => mg.modifierGroup.id === groupId,
+              )?.modifierGroup;
+              if (!group) continue;
+              for (const optId of optionIds) {
+                const opt = group.options.find((o) => o.id === optId);
+                if (opt) modifierNames.push(opt.name);
+              }
+            }
+            return {
+              menuItemName: comboItem.menuItem.name,
+              modifierNames,
+              specialInstructions: item.specialInstructions,
+            };
+          }),
+        },
+      ];
+    },
+  );
+
+  // Get unique sorted dates from hydrated items + combos
+  const allDatesSet = new Set<string>();
+  for (const item of hydratedSelectedItems) {
+    if (item.date) allDatesSet.add(item.date);
+  }
+  for (const combo of hydratedCombos) {
+    if (combo.date) allDatesSet.add(combo.date);
+  }
+  const itemDates = [...allDatesSet].sort();
 
   const handleEditItem = (item: (typeof hydratedSelectedItems)[0]) => {
     const entry = menuEntries.find((e) => e.id === item.menuEntryId);
@@ -225,7 +305,7 @@ function Cart() {
       </div>
 
       <div className="flex flex-1 flex-col px-4 pb-20">
-        {hydratedSelectedItems.length === 0 ? (
+        {hydratedSelectedItems.length === 0 && hydratedCombos.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center text-center">
             <p className="text-lg text-muted-foreground mb-4">
               Your cart is empty
@@ -239,6 +319,9 @@ function Cart() {
             {itemDates.map((date) => {
               const itemsForDate = hydratedSelectedItems.filter(
                 (item) => item.date === date,
+              );
+              const combosForDate = hydratedCombos.filter(
+                (combo) => combo.date === date,
               );
 
               return (
@@ -297,6 +380,70 @@ function Cart() {
                       />
                     </div>
                   ))}
+
+                  {combosForDate.map((combo) => (
+                    <div
+                      className="border-t py-2"
+                      key={combo.comboSkuId}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <p className="text-lg font-semibold">
+                            {combo.comboName}
+                          </p>
+                          <div className="pl-2">
+                            {combo.items.map((item, i) => (
+                              <div key={i} className="text-sm">
+                                <span className="text-slate-700">
+                                  {item.menuItemName}
+                                </span>
+                                {item.modifierNames.length > 0 && (
+                                  <span className="text-slate-500">
+                                    {" "}
+                                    ({item.modifierNames.join(", ")})
+                                  </span>
+                                )}
+                                {item.specialInstructions && (
+                                  <span className="italic text-muted-foreground">
+                                    {" "}
+                                    - {item.specialInstructions}
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-sm text-green-700">
+                            Discount: -{formatCents(combo.discountAmount)}
+                          </p>
+                          <p>{formatCents(combo.totalPrice)}</p>
+                        </div>
+                        <QuantityStepper
+                          value={combo.quantity}
+                          onReduce={() => {
+                            const newQty = combo.quantity - 1;
+                            if (newQty <= 0) {
+                              removeComboFromCart(combo.comboSkuId);
+                            } else {
+                              updateComboQuantity(combo.comboSkuId, newQty);
+                            }
+                          }}
+                          onIncrease={() => {
+                            updateComboQuantity(
+                              combo.comboSkuId,
+                              combo.quantity + 1,
+                            );
+                          }}
+                          reduceDisabled={false}
+                          increaseDisabled={false}
+                          reduceIcon={
+                            combo.quantity <= 1 ? (
+                              <Trash2 className="size-4" />
+                            ) : undefined
+                          }
+                        />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               );
             })}
@@ -312,7 +459,7 @@ function Cart() {
             onClick={() => {
               navigate({ to: "/checkout" });
             }}
-            disabled={hydratedSelectedItems.length === 0}
+            disabled={hydratedSelectedItems.length === 0 && hydratedCombos.length === 0}
           >
             Go To Checkout
           </button>
