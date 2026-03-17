@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useForm } from "@tanstack/react-form";
 import { z } from "zod";
 import { authClient } from "@/lib/auth-client";
-import { isProfileIncomplete } from "@/lib/auth-utils";
 import { toast } from "sonner";
 
 // Step state machine
@@ -96,7 +95,7 @@ export function useAuthForm(callbacks?: AuthFormCallbacks) {
       const { user } = data;
 
       // Check if this is a new user or incomplete profile (temp name indicates new signup)
-      const isIncomplete = isProfileIncomplete(user);
+      const isIncomplete = /^User \d{4}$/.test(user.name);
       setIsNewUser(isIncomplete);
 
       if (isIncomplete) {

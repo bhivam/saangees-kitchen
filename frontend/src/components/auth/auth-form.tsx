@@ -4,7 +4,6 @@ import { AuthFormPhoneStep } from "./auth-form-phone-step";
 import { AuthFormOTPStep } from "./auth-form-otp-step";
 import { AuthFormNameStep } from "./auth-form-name-step";
 import { useAuth } from "@/hooks/use-auth";
-import { isProfileIncomplete } from "@/lib/auth-utils";
 
 interface AuthFormProps {
   onSuccess?: AuthFormCallbacks["onSuccess"];
@@ -27,7 +26,7 @@ export function AuthForm({
   title,
   description,
 }: AuthFormProps) {
-  const { user } = useAuth();
+  const { user, isProfileIncomplete } = useAuth();
   const { form, currentStep, isLoading, goBack, setCurrentStep } = useAuthForm({
     onSuccess,
     onAnonymousConvert,
@@ -35,7 +34,7 @@ export function AuthForm({
 
   // Check if user has incomplete profile on mount
   useEffect(() => {
-    if (user && isProfileIncomplete(user)) {
+    if (user && isProfileIncomplete) {
       // Skip directly to name step for incomplete profiles
       setCurrentStep("name");
     }
