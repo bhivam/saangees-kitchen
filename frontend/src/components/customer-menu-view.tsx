@@ -5,6 +5,7 @@ import { Skeleton } from "./ui/skeleton";
 import { Button } from "./ui/button";
 import { ShoppingCart, Menu } from "lucide-react";
 import { AddItemDialogContent } from "./add-item-cart-dialog";
+import { AddComboCartDialog } from "./add-combo-cart-dialog";
 import { useCart } from "@/hooks/use-cart";
 import { Dialog, DialogTrigger } from "./ui/dialog";
 import { Sheet, SheetTrigger } from "./ui/sheet";
@@ -12,9 +13,11 @@ import { useState } from "react";
 import { HomeSheetContent } from "./home-sheet-content";
 import { isMenuVisible } from "@/lib/order-cutoffs";
 
-export type MenuEntry = RouterOutputs["menu"]["getWeekMenu"][number];
+export type MenuEntry = RouterOutputs["menu"]["getWeekMenu"]["menuEntries"][number];
 
 export type MenuItem = MenuEntry["menuItem"];
+
+export type ComboEntry = RouterOutputs["menu"]["getWeekMenu"]["comboEntries"][number];
 
 export function formatDate(dateString: string): string {
   const date = new Date(dateString + "T00:00:00");
@@ -100,7 +103,64 @@ function MenuItemBullet({ entry, disabled }: { entry: MenuEntry; disabled?: bool
   );
 }
 
-function DayCard({ date, entries, orderingOpen }: { date: string; entries: MenuEntry[]; orderingOpen: boolean }) {
+function ComboMenuBullet({ entry, disabled }: { entry: ComboEntry; disabled?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const combo = entry.combo;
+  const basePrice = combo.comboItems.reduce(
+    (sum, ci) => sum + ci.menuItem.basePrice,
+    0,
+  );
+  const comboPrice = basePrice - combo.discountAmount;
+  const price = (comboPrice / 100).toFixed(2);
+
+  if (disabled) {
+    return (
+      <div className="text-left rounded px-1 py-0.5 w-full opacity-50 cursor-not-allowed col-span-full">
+        <span className="text-gray-800 font-semibold">
+          • {combo.name} - ${price}
+        </span>
+        <span className="text-xs text-gray-600 ml-1">
+          ({combo.comboItems.map((ci) => ci.menuItem.name).join(" + ")})
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <button
+        className="text-left hover:bg-white/20 rounded px-1 py-0.5 transition-colors cursor-pointer w-full col-span-full"
+        onClick={() => setOpen(true)}
+      >
+        <span className="text-gray-800 font-semibold">
+          • {combo.name} - ${price}
+        </span>
+        <span className="text-xs text-gray-600 ml-1">
+          ({combo.comboItems.map((ci) => ci.menuItem.name).join(" + ")})
+        </span>
+      </button>
+      {open && (
+        <AddComboCartDialog
+          comboEntry={entry}
+          open={open}
+          onOpenChange={setOpen}
+        />
+      )}
+    </>
+  );
+}
+
+function DayCard({
+  date,
+  entries,
+  comboEntries,
+  orderingOpen,
+}: {
+  date: string;
+  entries: MenuEntry[];
+  comboEntries: ComboEntry[];
+  orderingOpen: boolean;
+}) {
   return (
     <div className="bg-menu-card py-0.5 px-1.5 shadow-md">
       <h3 className="text-xl font-bold underline">
@@ -113,6 +173,9 @@ function DayCard({ date, entries, orderingOpen }: { date: string; entries: MenuE
         {entries.map((entry) => (
           <MenuItemBullet key={entry.id} entry={entry} disabled={!orderingOpen} />
         ))}
+        {comboEntries.map((entry) => (
+          <ComboMenuBullet key={entry.id} entry={entry} disabled={!orderingOpen} />
+        ))}
       </div>
     </div>
   );
@@ -123,10 +186,15 @@ function Header() {
 
   const { cart } = useCart();
 
-  const itemCount = Object.values(cart.items).reduce(
-    (sum, item) => sum + (item?.quantity || 0),
-    0,
-  );
+  const itemCount =
+    Object.values(cart.items).reduce(
+      (sum, item) => sum + (item?.quantity || 0),
+      0,
+    ) +
+    Object.values(cart.combos ?? {}).reduce(
+      (sum, combo) => sum + (combo?.quantity || 0),
+      0,
+    );
 
   return (
     <header className="sticky top-0 z-50 bg-menu-bg px-4 py-3">
@@ -196,7 +264,7 @@ function LoadingSkeleton() {
 export function CustomerMenuView() {
   const trpc = useTRPC();
 
-  const { data: menuEntries, isLoading } = useQuery(
+  const { data: weekMenu, isLoading } = useQuery(
     trpc.menu.getWeekMenu.queryOptions(),
   );
 
@@ -204,20 +272,29 @@ export function CustomerMenuView() {
     return <LoadingSkeleton />;
   }
 
-  const groupedMenus = menuEntries
-    ? groupMenusByDate(menuEntries)
-    : new Map<string, MenuEntry[]>();
+  const menuEntries = weekMenu?.menuEntries ?? [];
+  const comboEntries = weekMenu?.comboEntries ?? [];
 
-  // Get sorted list of dates with items, filtering out hidden days (client-side double-check)
-  const daysWithItems = menuEntries
-    ? [
-        ...new Set(
-          menuEntries.map((e) => e.date).filter((d): d is string => d !== null),
-        ),
-      ]
-        .filter((d) => isMenuVisible(d))
-        .sort()
-    : [];
+  const groupedMenus = groupMenusByDate(menuEntries);
+
+  const groupedCombos = new Map<string, ComboEntry[]>();
+  for (const entry of comboEntries) {
+    if (entry.date === null) continue;
+    if (!groupedCombos.has(entry.date)) {
+      groupedCombos.set(entry.date, []);
+    }
+    groupedCombos.get(entry.date)!.push(entry);
+  }
+
+  // Get sorted list of dates with items or combos, filtering out hidden days
+  const allDates = new Set<string>();
+  for (const e of menuEntries) {
+    if (e.date) allDates.add(e.date);
+  }
+  for (const e of comboEntries) {
+    if (e.date) allDates.add(e.date);
+  }
+  const daysWithItems = [...allDates].filter((d) => isMenuVisible(d)).sort();
 
   // Calculate date range text
   const dateRangeText =
@@ -236,9 +313,19 @@ export function CustomerMenuView() {
         )}
         <div className="space-y-4">
           {daysWithItems.map((date) => {
-            const entries = groupedMenus.get(date)!;
-            const orderingOpen = entries[0]?.orderingOpen ?? true;
-            return <DayCard key={date} date={date} entries={entries} orderingOpen={orderingOpen} />;
+            const entries = groupedMenus.get(date) ?? [];
+            const combos = groupedCombos.get(date) ?? [];
+            const orderingOpen =
+              entries[0]?.orderingOpen ?? combos[0]?.orderingOpen ?? true;
+            return (
+              <DayCard
+                key={date}
+                date={date}
+                entries={entries}
+                comboEntries={combos}
+                orderingOpen={orderingOpen}
+              />
+            );
           })}
         </div>
       </div>

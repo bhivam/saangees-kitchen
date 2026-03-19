@@ -24,6 +24,7 @@ import {
   ShoppingBag,
   CreditCard,
   NotebookPen,
+  Package,
 } from "lucide-react";
 
 const menuManagementItems = [
@@ -33,6 +34,7 @@ const menuManagementItems = [
     icon: SlidersHorizontal,
     to: "/dashboard/modifiers",
   },
+  { name: "Combo Manager", icon: Package, to: "/dashboard/combos" },
   { name: "Menu Editor", icon: Menu, to: "/dashboard/menu" },
 ] as const;
 

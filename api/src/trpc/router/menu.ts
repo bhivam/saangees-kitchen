@@ -2,10 +2,18 @@ import { createTRPCRouter, publicProcedure, adminProcedure } from "../index.js";
 import { z } from "zod";
 import { eq, inArray, isNull, and, sql, exists, not } from "drizzle-orm";
 import { db } from "../../db/db.js";
-import { menuItems, menuEntries, orderItems } from "../../db/schema.js";
+import {
+  menuItems,
+  menuEntries,
+  orderItems,
+  comboEntries,
+  comboItems,
+  combos,
+} from "../../db/schema.js";
 import { TRPCError } from "@trpc/server";
 import { PgColumn } from "drizzle-orm/pg-core";
 import { isMenuVisible, isOrderingOpen } from "../../lib/order-cutoffs.js";
+import { queryComboEntriesWithFullData } from "./combo.js";
 
 // TODO may consider differentiating having a manual order vs a customer order
 function hasOrdersQuery(menuEntriesId: PgColumn) {
@@ -143,7 +151,8 @@ export const menuRouter = createTRPCRouter({
       }
     }
 
-    if (dates.length === 0) return [];
+    if (dates.length === 0)
+      return { menuEntries: [], comboEntries: [] };
 
     const menuEntriesResult = await db.query.menuEntries.findMany({
       where: and(
@@ -172,7 +181,7 @@ export const menuRouter = createTRPCRouter({
       throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
     // Filter out deleted items/groups/options, add orderingOpen flag
-    const filteredResult = menuEntriesResult
+    const filteredMenuEntries = menuEntriesResult
       .filter((entry) => entry.menuItem.deletedAt === null)
       .map((entry) => ({
         ...entry,
@@ -193,7 +202,47 @@ export const menuRouter = createTRPCRouter({
         },
       }));
 
-    return filteredResult;
+    // Fetch combo entries for the same dates (uses two-step query to avoid PG alias collision)
+    const comboEntriesResult = await queryComboEntriesWithFullData(
+      and(
+        inArray(comboEntries.date, dates),
+        isNull(comboEntries.deletedAt),
+      )!,
+    );
+
+    const filteredComboEntries = (comboEntriesResult ?? [])
+      .filter((entry) => entry.combo.deletedAt === null)
+      .map((entry) => ({
+        ...entry,
+        orderingOpen: isOrderingOpen(entry.date),
+        combo: {
+          ...entry.combo,
+          comboItems: entry.combo.comboItems
+            .filter((ci) => ci.menuItem.deletedAt === null)
+            .map((ci) => ({
+              ...ci,
+              menuItem: {
+                ...ci.menuItem,
+                modifierGroups: ci.menuItem.modifierGroups
+                  .filter((mg) => mg.modifierGroup.deletedAt === null)
+                  .map((mg) => ({
+                    ...mg,
+                    modifierGroup: {
+                      ...mg.modifierGroup,
+                      options: mg.modifierGroup.options.filter(
+                        (opt) => opt.deletedAt === null,
+                      ),
+                    },
+                  })),
+              },
+            })),
+        },
+      }));
+
+    return {
+      menuEntries: filteredMenuEntries,
+      comboEntries: filteredComboEntries,
+    };
   }),
 
   save: adminProcedure
@@ -209,6 +258,58 @@ export const menuRouter = createTRPCRouter({
 
       return await db.transaction(async (tx) => {
         if (input.itemsToDelete.length > 0) {
+          // Guard: check if any items being deleted are required by active combos
+          const entriesToDelete = await tx.query.menuEntries.findMany({
+            where: and(
+              inArray(menuEntries.id, input.itemsToDelete),
+              eq(menuEntries.date, input.date),
+            ),
+            columns: { menuItemId: true },
+          });
+          const deletingMenuItemIds = new Set(
+            entriesToDelete.map((e) => e.menuItemId),
+          );
+
+          if (deletingMenuItemIds.size > 0) {
+            // Find active combos on this date
+            const activeComboEntries = await tx.query.comboEntries.findMany({
+              where: and(
+                eq(comboEntries.date, input.date),
+                isNull(comboEntries.deletedAt),
+              ),
+              columns: { comboId: true },
+            });
+            const activeComboIds = [
+              ...new Set(activeComboEntries.map((e) => e.comboId)),
+            ];
+
+            if (activeComboIds.length > 0) {
+              // Get the required menuItemIds for those combos, with combo names
+              const requiredItems = await tx
+                .select({
+                  menuItemId: comboItems.menuItemId,
+                  comboName: combos.name,
+                })
+                .from(comboItems)
+                .innerJoin(combos, eq(comboItems.comboId, combos.id))
+                .where(inArray(comboItems.comboId, activeComboIds));
+
+              const blockedBy = requiredItems.filter((ri) =>
+                deletingMenuItemIds.has(ri.menuItemId),
+              );
+
+              if (blockedBy.length > 0) {
+                const comboNames = [
+                  ...new Set(blockedBy.map((b) => b.comboName)),
+                ];
+                throw new TRPCError({
+                  code: "BAD_REQUEST",
+                  message: `Cannot remove item(s) required by active combo(s): ${comboNames.join(", ")}. Remove the combo first.`,
+                });
+              }
+            }
+          }
+
           await tx
             .update(menuEntries)
             .set({ deletedAt: new Date(), updatedAt: new Date() })

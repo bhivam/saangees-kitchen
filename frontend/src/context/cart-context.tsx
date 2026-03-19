@@ -1,12 +1,16 @@
 import type { MenuItemSelection } from "@/hooks/use-menu-item-form";
 import {
   addCartItemLS,
+  addComboToCartLS,
   getCartLS,
   removeCartItemBySkuLS,
+  removeComboFromCartLS,
   replaceCartItemLS,
   setCartLS,
   updateCartItemQuantityLS,
+  updateComboQuantityLS,
   type Cart,
+  type ComboSelection,
 } from "@/lib/cart";
 import { createContext, useCallback, useState, type ReactNode } from "react";
 
@@ -17,6 +21,9 @@ export const CartContext = createContext<{
   updateCartItemQuantity: (skuId: string, quantity: number) => void;
   removeCartItem: (skuId: string) => void;
   replaceCartItem: (oldSkuId: string, newSelection: MenuItemSelection) => void;
+  addComboToCart: (selection: ComboSelection) => void;
+  removeComboFromCart: (comboSkuId: string) => void;
+  updateComboQuantity: (comboSkuId: string, quantity: number) => void;
 } | null>(null);
 
 export function CartProvider({ children }: { children: ReactNode }) {
@@ -25,9 +32,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const addCartItem = useCallback(
     (cartItem: MenuItemSelection) => {
       addCartItemLS(cartItem);
-      const cart = getCartLS();
-
-      setCartState(cart);
+      setCartState(getCartLS());
     },
     [setCartState],
   );
@@ -64,6 +69,30 @@ export function CartProvider({ children }: { children: ReactNode }) {
     [setCartState],
   );
 
+  const addComboToCart = useCallback(
+    (selection: ComboSelection) => {
+      addComboToCartLS(selection);
+      setCartState(getCartLS());
+    },
+    [setCartState],
+  );
+
+  const removeComboFromCart = useCallback(
+    (comboSkuId: string) => {
+      removeComboFromCartLS(comboSkuId);
+      setCartState(getCartLS());
+    },
+    [setCartState],
+  );
+
+  const updateComboQuantity = useCallback(
+    (comboSkuId: string, quantity: number) => {
+      updateComboQuantityLS(comboSkuId, quantity);
+      setCartState(getCartLS());
+    },
+    [setCartState],
+  );
+
   return (
     <CartContext.Provider
       value={{
@@ -73,10 +102,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
         updateCartItemQuantity,
         removeCartItem,
         replaceCartItem,
+        addComboToCart,
+        removeComboFromCart,
+        updateComboQuantity,
       }}
     >
       {children}
     </CartContext.Provider>
   );
 }
-

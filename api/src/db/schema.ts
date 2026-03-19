@@ -38,6 +38,7 @@ export const menuItems = pgTable("menu_items", {
 
 export const menuItemsRelations = relations(menuItems, ({ many }) => ({
   modifierGroups: many(menuItemModifierGroups),
+  comboItems: many(comboItems),
 }));
 
 export const modifierGroups = pgTable("modifier_groups", {
@@ -133,6 +134,7 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
     references: [user.id],
   }),
   items: many(orderItems),
+  orderCombos: many(orderCombos),
 }));
 
 export const orderItems = pgTable("order_items", {
@@ -143,6 +145,7 @@ export const orderItems = pgTable("order_items", {
   menuEntryId: uuid("menu_entry_id")
     .notNull()
     .references(() => menuEntries.id),
+  orderComboId: uuid("order_combo_id").references(() => orderCombos.id),
   quantity: integer("quantity").notNull().default(1),
   specialInstructions: text("special_instructions"),
   itemPrice: integer("item_price").notNull(),
@@ -158,6 +161,10 @@ export const orderItemsRelations = relations(orderItems, ({ one, many }) => ({
   menuEntry: one(menuEntries, {
     fields: [orderItems.menuEntryId],
     references: [menuEntries.id],
+  }),
+  orderCombo: one(orderCombos, {
+    fields: [orderItems.orderComboId],
+    references: [orderCombos.id],
   }),
   modifiers: many(orderItemModifiers),
 }));
@@ -187,6 +194,97 @@ export const orderItemModifiersRelations = relations(
     }),
   }),
 );
+
+// Combos
+export const combos = pgTable("combos", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  discountAmount: integer("discount_amount").notNull(),
+  ...sharedColumns,
+});
+
+export const combosRelations = relations(combos, ({ many }) => ({
+  comboItems: many(comboItems),
+  comboEntries: many(comboEntries),
+}));
+
+export const comboItems = pgTable(
+  "combo_items",
+  {
+    comboId: uuid("combo_id")
+      .notNull()
+      .references(() => combos.id),
+    menuItemId: uuid("menu_item_id")
+      .notNull()
+      .references(() => menuItems.id),
+    sortOrder: integer("sort_order").notNull(),
+    ...sharedColumns,
+  },
+  (t) => [
+    primaryKey({ columns: [t.comboId, t.menuItemId], name: "combo_items_pk" }),
+  ],
+);
+
+export const comboItemsRelations = relations(comboItems, ({ one }) => ({
+  combo: one(combos, {
+    fields: [comboItems.comboId],
+    references: [combos.id],
+  }),
+  menuItem: one(menuItems, {
+    fields: [comboItems.menuItemId],
+    references: [menuItems.id],
+  }),
+}));
+
+export const comboEntries = pgTable(
+  "combo_entries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    date: date("date").notNull(),
+    comboId: uuid("combo_id")
+      .notNull()
+      .references(() => combos.id),
+    sortOrder: integer("sort_order").notNull(),
+    ...sharedColumns,
+  },
+  (t) => [unique("combo_entry_date_combo").on(t.date, t.comboId)],
+);
+
+export const comboEntriesRelations = relations(
+  comboEntries,
+  ({ one, many }) => ({
+    combo: one(combos, {
+      fields: [comboEntries.comboId],
+      references: [combos.id],
+    }),
+    orderCombos: many(orderCombos),
+  }),
+);
+
+export const orderCombos = pgTable("order_combos", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  orderId: uuid("order_id")
+    .notNull()
+    .references(() => orders.id),
+  comboEntryId: uuid("combo_entry_id")
+    .notNull()
+    .references(() => comboEntries.id),
+  discountAmount: integer("discount_amount").notNull(),
+  ...sharedColumns,
+});
+
+export const orderCombosRelations = relations(orderCombos, ({ one, many }) => ({
+  order: one(orders, {
+    fields: [orderCombos.orderId],
+    references: [orders.id],
+  }),
+  comboEntry: one(comboEntries, {
+    fields: [orderCombos.comboEntryId],
+    references: [comboEntries.id],
+  }),
+  items: many(orderItems),
+}));
 
 export const menuEntries = pgTable(
   "menus_entries",

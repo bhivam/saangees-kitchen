@@ -39,6 +39,8 @@ function MyOrders() {
     (data.thisWeek.ordersByDate.length === 0 &&
       data.pastWeeks.orderCount === 0);
 
+  console.log(data);
+
   return (
     <div className="flex min-h-screen flex-col">
       <div className="flex justify-between px-4 pt-4">
@@ -73,7 +75,9 @@ function MyOrders() {
                   <span>Paid: {formatCents(data.thisWeek.totalPaid)}</span>
                 )}
                 {data.pastWeeks.totalOwed > 0 && (
-                  <span>Past weeks: {formatCents(data.pastWeeks.totalOwed)}</span>
+                  <span>
+                    Past weeks: {formatCents(data.pastWeeks.totalOwed)}
+                  </span>
                 )}
               </div>
             </div>
@@ -122,3 +126,4 @@ function MyOrders() {
     </div>
   );
 }
+
