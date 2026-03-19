@@ -9,11 +9,7 @@ import { useCart } from "@/hooks/use-cart";
 import { useTRPC } from "@/trpc";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { parseSkuId, type Cart } from "@/lib/cart";
-import {
-  formatDate,
-  type MenuEntry,
-  type ComboEntry,
-} from "@/components/customer-menu-view";
+import { formatDate, type MenuEntry } from "@/components/customer-menu-view";
 import { formatCents } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
