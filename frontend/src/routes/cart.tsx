@@ -1,14 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { authClient } from "@/lib/auth-client";
 import { useCart } from "@/hooks/use-cart";
-import { parseSkuId, type Cart, type ComboCartItem } from "@/lib/cart";
+import { parseSkuId, type Cart } from "@/lib/cart";
 import { useQuery } from "@tanstack/react-query";
 import { useTRPC } from "@/trpc";
-import {
-  formatDate,
-  type MenuEntry,
-  type ComboEntry,
-} from "@/components/customer-menu-view";
+import { formatDate, type MenuEntry } from "@/components/customer-menu-view";
 import { formatCents } from "@/lib/utils";
 import { X, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -382,10 +378,7 @@ function Cart() {
                   ))}
 
                   {combosForDate.map((combo) => (
-                    <div
-                      className="border-t py-2"
-                      key={combo.comboSkuId}
-                    >
+                    <div className="border-t py-2" key={combo.comboSkuId}>
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
                           <p className="text-lg font-semibold">
@@ -459,7 +452,9 @@ function Cart() {
             onClick={() => {
               navigate({ to: "/checkout" });
             }}
-            disabled={hydratedSelectedItems.length === 0 && hydratedCombos.length === 0}
+            disabled={
+              hydratedSelectedItems.length === 0 && hydratedCombos.length === 0
+            }
           >
             Go To Checkout
           </button>
