@@ -4,11 +4,13 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import z from "zod";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useUploadImage } from "./use-upload-image";
 
 const itemSchema = z.object({
   name: z.string({ error: "Name cannot be empty" }).min(1, "Name is required"),
   basePrice: z.number({ error: "Price cannot be empty" }).int().positive("Price must be greater than 0"),
   description: z.string({ error: "Description cannot be empty" }).min(1, "Description is required"),
+  imageUrl: z.string().url().nullable(),
   selectedModifierGroups: z.array(
     z.object({
       groupId: z.string(),
@@ -24,6 +26,7 @@ export type MenuItemResult = {
   name: string;
   description: string;
   basePrice: number;
+  imageUrl: string | null;
   modifierGroups: Array<{
     menuItemId: string;
     groupId: string;
@@ -54,6 +57,9 @@ export function useAddItemForm({
 }) {
   const isEditMode = !!editData;
   const queryClient = useQueryClient();
+  const { uploadMutation, isPending: isUploading } = useUploadImage();
+
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const trpc = useTRPC();
 
@@ -128,6 +134,7 @@ export function useAddItemForm({
       name: editData?.name ?? "",
       basePrice: editData?.basePrice ?? 0,
       description: editData?.description ?? "",
+      imageUrl: editData?.imageUrl ?? null,
       selectedModifierGroups:
         editData?.modifierGroups.map((mg) => ({
           groupId: mg.groupId,
@@ -164,27 +171,43 @@ export function useAddItemForm({
     },
     onSubmit: async ({ value, formApi }) => {
       setFieldErrors({});
-      const { selectedModifierGroups, ...itemData } = value;
+      const { selectedModifierGroups, imageUrl, ...itemData } = value;
       const modifierGroups = selectedModifierGroups.map((mg, index) => ({
         groupId: mg.groupId,
         sortOrder: index,
       }));
 
+      let finalImageUrl: string | null | undefined = imageUrl;
+      if (selectedFile) {
+        try {
+          finalImageUrl = await uploadMutation.mutateAsync(selectedFile);
+        } catch (e) {
+          toast.error(
+            e instanceof Error ? e.message : "Failed to upload image",
+            { position: "bottom-center" },
+          );
+          return;
+        }
+      }
+
       if (isEditMode) {
         await updateMenuItemMutation.mutateAsync({
           id: editData.id,
           ...itemData,
+          imageUrl: finalImageUrl,
           modifierGroups,
         });
       } else {
         const result = await createMenuItemMutation.mutateAsync({
           ...itemData,
+          imageUrl: finalImageUrl,
           modifierGroups,
         });
         if (result?.[0]) {
           onCreated?.(result[0]);
         }
       }
+      setSelectedFile(null);
       formApi.reset();
       setOpen?.(false);
     },
@@ -199,6 +222,9 @@ export function useAddItemForm({
     isEditMode,
     fieldErrors,
     clearFieldErrors,
+    selectedFile,
+    setSelectedFile,
+    isUploading,
   };
 }
 

@@ -33,6 +33,7 @@ export const menuItems = pgTable("menu_items", {
   name: text("name").notNull(),
   description: text("description").notNull(),
   basePrice: integer("base_price").notNull(),
+  imageUrl: text("image_url"),
   ...sharedColumns,
 });
 

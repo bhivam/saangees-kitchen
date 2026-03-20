@@ -12,6 +12,7 @@ export const menuItemsRouter = createTRPCRouter({
         name: z.string().min(1),
         description: z.string().min(1),
         basePrice: z.number().int().positive(),
+        imageUrl: z.string().url().nullable().optional(),
         modifierGroups: z
           .array(
             z.object({
@@ -67,6 +68,7 @@ export const menuItemsRouter = createTRPCRouter({
         name: z.string().min(1),
         description: z.string().min(1),
         basePrice: z.number().int().positive(),
+        imageUrl: z.string().url().nullable().optional(),
         modifierGroups: z
           .array(
             z.object({

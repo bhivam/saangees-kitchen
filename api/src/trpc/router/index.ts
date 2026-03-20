@@ -5,6 +5,7 @@ import { menuRouter } from "./menu.js";
 import { menuItemsRouter } from "./menuItem.js";
 import { modifierGroupsRouter } from "./modifierGroup.js";
 import { ordersRouter } from "./order.js";
+import { photoRouter } from "./photo.js";
 import { usersRouter } from "./users.js";
 
 export const appRouter = createTRPCRouter({
@@ -15,6 +16,7 @@ export const appRouter = createTRPCRouter({
   menu: menuRouter,
   modifierGroups: modifierGroupsRouter,
   orders: ordersRouter,
+  photo: photoRouter,
   users: usersRouter,
 });
 

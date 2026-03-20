@@ -16,6 +16,10 @@ export const env = createEnv({
     SERVER_URL: z.url().default("http://localhost:3000"),
     FRONTEND_URLS: semicolonSeparatedUrlsSchema,
     SURGE_API_KEY: z.string(),
+    AWS_ACCESS_KEY_ID: z.string(),
+    AWS_SECRET_ACCESS_KEY: z.string(),
+    AWS_REGION: z.string(),
+    BUCKET_NAME: z.string(),
   },
   runtimeEnv: process.env,
 });

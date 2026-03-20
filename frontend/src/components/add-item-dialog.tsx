@@ -13,12 +13,9 @@ import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Button } from "./ui/button";
 import { CentsInput } from "./ui/cents-input";
-import { Plus } from "lucide-react";
-import { useState } from "react";
-import {
-  useAddItemForm,
-  type MenuItemResult,
-} from "@/hooks/use-add-item-form";
+import { Plus, X, Upload } from "lucide-react";
+import { useState, useRef } from "react";
+import { useAddItemForm, type MenuItemResult } from "@/hooks/use-add-item-form";
 import { ModifierGroupSelector } from "./modifier-group-selector";
 import { AddModifierDialog } from "./add-modifier-dialog";
 
@@ -40,7 +37,7 @@ export function AddItemDialog({
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : uncontrolledOpen;
   const setOpen = isControlled
-    ? controlledOnOpenChange ?? (() => {})
+    ? (controlledOnOpenChange ?? (() => {}))
     : setUncontrolledOpen;
 
   const addItemForm = useAddItemForm({ setOpen, editData, onCreated });
@@ -74,11 +71,33 @@ function AddItemDialogContent({
   isEditMode,
   fieldErrors,
   clearFieldErrors,
+  setSelectedFile,
+  isUploading,
 }: ReturnType<typeof useAddItemForm>) {
   const [createModifierOpen, setCreateModifierOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSelectedFile(file);
+    if (blobUrl) URL.revokeObjectURL(blobUrl);
+    setBlobUrl(URL.createObjectURL(file));
+  };
+
+  const handleRemoveImage = () => {
+    setSelectedFile(null);
+    if (blobUrl) URL.revokeObjectURL(blobUrl);
+    setBlobUrl(null);
+    form.setFieldValue("imageUrl", null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   return (
-    <DialogContent className="xl:max-w-[700px] sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
+    <DialogContent className="xl:max-w-175 sm:max-w-106.25 max-h-[90vh] overflow-y-auto">
       <DialogHeader>
         <DialogTitle>
           {isEditMode ? "Edit Item" : "Create New Item"}
@@ -91,6 +110,52 @@ function AddItemDialogContent({
       </DialogHeader>
 
       <div className="grid gap-2">
+        {/* Image Upload Section */}
+        <form.Subscribe selector={(state) => state.values.imageUrl}>
+          {(imageUrl) => {
+            const previewUrl = blobUrl ?? imageUrl;
+            return (
+              <div>
+                <Label>Image (optional)</Label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="hidden"
+                  onChange={handleFileSelect}
+                />
+                {previewUrl ? (
+                  <div className="relative mt-2">
+                    <img
+                      src={previewUrl}
+                      alt="Preview"
+                      className="w-full h-48 object-cover rounded-md"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-2 right-2 h-8 w-8"
+                      onClick={handleRemoveImage}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="mt-2 w-full h-32 border-2 border-dashed border-muted-foreground/25 rounded-md flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-muted-foreground/50 transition-colors cursor-pointer"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Upload className="h-6 w-6" />
+                    <span className="text-sm">Click to upload</span>
+                  </button>
+                )}
+              </div>
+            );
+          }}
+        </form.Subscribe>
+
         <div className="flex flex-row gap-2 items-start">
           <form.Field name="name">
             {({ handleChange, state: { value } }) => (
@@ -119,7 +184,9 @@ function AddItemDialogContent({
                   onInteract={clearFieldErrors}
                 />
                 {fieldErrors.basePrice && (
-                  <p className="text-sm text-red-500">{fieldErrors.basePrice}</p>
+                  <p className="text-sm text-red-500">
+                    {fieldErrors.basePrice}
+                  </p>
                 )}
               </div>
             )}
@@ -137,7 +204,9 @@ function AddItemDialogContent({
                 }}
               />
               {fieldErrors.description && (
-                <p className="text-sm text-red-500">{fieldErrors.description}</p>
+                <p className="text-sm text-red-500">
+                  {fieldErrors.description}
+                </p>
               )}
             </div>
           )}
@@ -188,16 +257,18 @@ function AddItemDialogContent({
           <Button variant="outline">Cancel</Button>
         </DialogClose>
         <Button
-          disabled={createMenuItemMutation.isPending}
+          disabled={createMenuItemMutation.isPending || isUploading}
           onClick={form.handleSubmit}
         >
-          {createMenuItemMutation.isPending
-            ? isEditMode
-              ? "Updating Item..."
-              : "Creating Item..."
-            : isEditMode
-              ? "Update Item"
-              : "Create Item"}
+          {isUploading
+            ? "Uploading Image..."
+            : createMenuItemMutation.isPending
+              ? isEditMode
+                ? "Updating Item..."
+                : "Creating Item..."
+              : isEditMode
+                ? "Update Item"
+                : "Create Item"}
         </Button>
       </DialogFooter>
     </DialogContent>
