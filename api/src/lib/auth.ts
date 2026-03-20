@@ -32,13 +32,10 @@ export const auth = betterAuth({
       sendOTP: async ({ phoneNumber, code }) => {
         console.log(`\nOTP for ${phoneNumber}: ${code}`);
 
-        const message = await surgeClient.messages.create(
-          "acct_01kfbndhbffe2v1jvyxvmr3kb1",
-          {
-            conversation: { contact: { phone_number: phoneNumber } },
-            body: `Here is your OTP for Saangee's Kitchen: ${code}.`,
-          },
-        );
+        await surgeClient.messages.create("acct_01kfbndhbffe2v1jvyxvmr3kb1", {
+          conversation: { contact: { phone_number: phoneNumber } },
+          body: `Here is your OTP for Saangee's Kitchen: ${code}.`,
+        });
       },
       async callbackOnVerification(data) {
         await db
