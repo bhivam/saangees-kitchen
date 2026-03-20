@@ -39,8 +39,6 @@ function MyOrders() {
     (data.thisWeek.ordersByDate.length === 0 &&
       data.pastWeeks.orderCount === 0);
 
-  console.log(data);
-
   return (
     <div className="flex min-h-screen flex-col">
       <div className="flex justify-between px-4 pt-4">

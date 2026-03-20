@@ -64,6 +64,13 @@
       "when": 1772677794887,
       "tag": "0008_legal_texas_twister",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1773964608125,
+      "tag": "0009_normal_terrax",
+      "breakpoints": true
     }
   ]
 }

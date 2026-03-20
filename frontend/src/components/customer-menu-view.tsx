@@ -207,7 +207,6 @@ function Header() {
           </SheetTrigger>
           <HomeSheetContent
             closeNavMenu={() => {
-              console.log("pressed");
               setNavMenuOpen(false);
             }}
           />

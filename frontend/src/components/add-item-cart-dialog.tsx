@@ -85,6 +85,13 @@ export function AddItemDialogContent({
             </DialogClose>
           </div>
         </DialogTitle>
+        {menuItem.imageUrl && (
+          <img
+            src={menuItem.imageUrl}
+            alt={menuItem.name}
+            className="w-full rounded-md"
+          />
+        )}
         <DialogDescription>{menuItem.description}</DialogDescription>
       </DialogHeader>
       <form.Field name="modifierSelections">
