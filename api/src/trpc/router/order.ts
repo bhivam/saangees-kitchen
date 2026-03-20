@@ -68,8 +68,6 @@ export const ordersRouter = createTRPCRouter({
         });
       }
 
-      console.log(JSON.stringify(input), undefined, 2);
-
       // Fetch menu entries with enriched modifier data for validation + pricing
       const allMenuEntryIds = [
         ...input.items.map((i) => i.menuEntryId),
@@ -430,7 +428,6 @@ export const ordersRouter = createTRPCRouter({
       if (!orderDate) continue;
 
       if (orderDate >= sundayStr && orderDate <= saturdayStr) {
-        console.log(order);
         thisWeekOrders.push(order);
       } else if (orderDate < sundayStr) {
         pastWeeksOrders.push(order);

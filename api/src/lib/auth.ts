@@ -39,8 +39,6 @@ export const auth = betterAuth({
             body: `Here is your OTP for Saangee's Kitchen: ${code}.`,
           },
         );
-
-        console.log(message);
       },
       async callbackOnVerification(data) {
         await db
