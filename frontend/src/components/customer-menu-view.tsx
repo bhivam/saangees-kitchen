@@ -12,12 +12,15 @@ import { Sheet, SheetTrigger } from "./ui/sheet";
 import { useState } from "react";
 import { HomeSheetContent } from "./home-sheet-content";
 import { isMenuVisible } from "@/lib/order-cutoffs";
+import SteamingBowl from "@/svgs/steaming-bowl";
 
-export type MenuEntry = RouterOutputs["menu"]["getWeekMenu"]["menuEntries"][number];
+export type MenuEntry =
+  RouterOutputs["menu"]["getWeekMenu"]["menuEntries"][number];
 
 export type MenuItem = MenuEntry["menuItem"];
 
-export type ComboEntry = RouterOutputs["menu"]["getWeekMenu"]["comboEntries"][number];
+export type ComboEntry =
+  RouterOutputs["menu"]["getWeekMenu"]["comboEntries"][number];
 
 export function formatDate(dateString: string): string {
   const date = new Date(dateString + "T00:00:00");
@@ -68,7 +71,13 @@ function groupMenusByDate(menuEntries: MenuEntry[]): Map<string, MenuEntry[]> {
   return grouped;
 }
 
-function MenuItemBullet({ entry, disabled }: { entry: MenuEntry; disabled?: boolean }) {
+function MenuItemBullet({
+  entry,
+  disabled,
+}: {
+  entry: MenuEntry;
+  disabled?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const menuItem = entry.menuItem;
   const price = (menuItem.basePrice / 100).toFixed(2);
@@ -103,7 +112,13 @@ function MenuItemBullet({ entry, disabled }: { entry: MenuEntry; disabled?: bool
   );
 }
 
-function ComboMenuBullet({ entry, disabled }: { entry: ComboEntry; disabled?: boolean }) {
+function ComboMenuBullet({
+  entry,
+  disabled,
+}: {
+  entry: ComboEntry;
+  disabled?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const combo = entry.combo;
   const basePrice = combo.comboItems.reduce(
@@ -166,15 +181,25 @@ function DayCard({
       <h3 className="text-xl font-bold underline">
         {getDayName(date)}
         {!orderingOpen && (
-          <span className="text-sm font-normal text-red-700 ml-2 no-underline">(Ordering closed)</span>
+          <span className="text-sm font-normal text-red-700 ml-2 no-underline">
+            (Ordering closed)
+          </span>
         )}
       </h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1">
         {entries.map((entry) => (
-          <MenuItemBullet key={entry.id} entry={entry} disabled={!orderingOpen} />
+          <MenuItemBullet
+            key={entry.id}
+            entry={entry}
+            disabled={!orderingOpen}
+          />
         ))}
         {comboEntries.map((entry) => (
-          <ComboMenuBullet key={entry.id} entry={entry} disabled={!orderingOpen} />
+          <ComboMenuBullet
+            key={entry.id}
+            entry={entry}
+            disabled={!orderingOpen}
+          />
         ))}
       </div>
     </div>
@@ -304,30 +329,45 @@ export function CustomerMenuView() {
       : null;
 
   return (
-    <div className="min-h-screen bg-menu-bg font-serif">
+    <div className="min-h-screen bg-menu-bg font-serif flex flex-col">
       <Header />
-      <div className="container max-w-4xl mx-auto px-4">
+      <main className="container max-w-4xl mx-auto px-4 w-full flex-1 flex flex-col">
         {dateRangeText && (
           <p className="text-gray-800 text-center py-4">{dateRangeText}</p>
         )}
-        <div className="space-y-4">
-          {daysWithItems.map((date) => {
-            const entries = groupedMenus.get(date) ?? [];
-            const combos = groupedCombos.get(date) ?? [];
-            const orderingOpen =
-              entries[0]?.orderingOpen ?? combos[0]?.orderingOpen ?? true;
-            return (
-              <DayCard
-                key={date}
-                date={date}
-                entries={entries}
-                comboEntries={combos}
-                orderingOpen={orderingOpen}
-              />
-            );
-          })}
-        </div>
-      </div>
+
+        {daysWithItems.length === 0 ? (
+          <div className="flex-1 w-full flex items-center justify-center py-12">
+            <div className="text-center max-w-xs">
+              <SteamingBowl className="w-20 h-20 mx-auto mb-6 text-gray-800/70" />
+              <h2 className="text-2xl text-gray-900 mb-2">
+                The kitchen's resting
+              </h2>
+              <p className="text-gray-700 text-sm leading-relaxed">
+                We'll be back soon. ;)
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {daysWithItems.map((date) => {
+              const entries = groupedMenus.get(date) ?? [];
+              const combos = groupedCombos.get(date) ?? [];
+              const orderingOpen =
+                entries[0]?.orderingOpen ?? combos[0]?.orderingOpen ?? true;
+              return (
+                <DayCard
+                  key={date}
+                  date={date}
+                  entries={entries}
+                  comboEntries={combos}
+                  orderingOpen={orderingOpen}
+                />
+              );
+            })}
+          </div>
+        )}
+      </main>
     </div>
   );
 }
